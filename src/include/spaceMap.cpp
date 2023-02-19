@@ -32,8 +32,17 @@ bool InBorder(std::pair<int, int> coords, int width, int height) {
 
 std::pair<int, int> directions[] = {{0, -1}, {1, 0}, {0, 1}, {-1, 0}}; // B(ack) R(ight) U(p) L(eft)
 
-std::pair<int, int> NewDirection() {
-    return directions[rand() % 4];
+std::pair<int, int> no_direction = std::make_pair(-1000, -1000);
+
+std::pair<int, int> NewDirection(std::pair<int, int> direction) {
+    std::pair<int, int> new_direction;
+    while(direction == new_direction) {
+        new_direction = directions[rand() % 4];
+        if(direction == no_direction) {
+            break;
+        }
+    }
+    return new_direction;
 }
 
 int Clamp(int n, int lower, int upper) {
@@ -78,6 +87,13 @@ std::pair<int, int> ShiftDirection(std::pair<int, int> direction) {
     return directions[index];
 }
 
+#include "penk.cpp"
+#include "defSettings.cpp"
+
+int NearCorner(std::pair<int, int> coords) {
+    return (DIFF(coords.first, blocks_x) * DIFF(coords.second, blocks_y)) + 1;
+}
+
 std::pair<float, float> current_teleport_position;
 
 std::pair<int, int> ShiftCoords(std::pair<int, int> coords, int x, int y) {
@@ -112,6 +128,8 @@ std::pair<std::vector<int>, std::vector<std::pair<float, float>>> CreateSpaceMap
 
     printf("    Generation step 1 : \"Map creating base algorithm\" ");
 
+    std::pair<int, int> direction = NewDirection(no_direction);
+
     for(int layer = 0; layer < up; layer++) {
         if(seed == 0) {
             output_seed = time(NULL);
@@ -129,10 +147,14 @@ std::pair<std::vector<int>, std::vector<std::pair<float, float>>> CreateSpaceMap
         rgb[layer][start_point + 1] = 50;
         rgb[layer][start_point + 2] = 50;
 
-        std::pair<int, int> direction = NewDirection();
+        printf("%i, %i\n", direction.first, direction.second);
 
-        for(int i = 0; i < 50; i++) {
-            if(i >= 49) {
+        int maximum = (rand() % mapsize_x * mapsize_y + 1) * (layer + 1);
+        int step = 5;
+
+        for(int i = 0; i < maximum; i++) {
+            step--;
+            if(i >= maximum - 1) {
                 out_positions.push_back(coords);
                 rgb[layer][GetPixel(coords, mapsize_x)] = 50;
                 rgb[layer][GetPixel(coords, mapsize_x) + 1] = 50;
@@ -148,7 +170,7 @@ std::pair<std::vector<int>, std::vector<std::pair<float, float>>> CreateSpaceMap
                 direction = ReverseDirection(direction);
                 continue;
             } else {
-                if(rand() % 5 > 3) {
+                if(!(rand() % NearCorner(coords))) {
                     direction = ShiftDirection(direction);
                 }
 
@@ -156,8 +178,10 @@ std::pair<std::vector<int>, std::vector<std::pair<float, float>>> CreateSpaceMap
                 rgb[layer][GetPixel(coords, mapsize_x) + 1] = 50;
                 rgb[layer][GetPixel(coords, mapsize_x) + 2] = 50;
 
-                if(rand() % 10 > 8) {
-                    direction = NewDirection();
+                if(step <= 0) {
+                    direction = NewDirection(direction);
+
+                    step = 3 + rand() % 5;
                 }
             }
         }
@@ -224,7 +248,7 @@ std::pair<std::vector<int>, std::vector<std::pair<float, float>>> CreateSpaceMap
         printf("    Loading texture...\n");
         cubicmap_textures.push_back(LoadTextureFromImage(cubicmap_image));
         
-        cubicmap_meshes.push_back(GenMeshCubicmap(cubicmap_image, (Vector3){1.0f, 1.0f, 1.0f}));
+        cubicmap_meshes.push_back(GenMeshCubicmap(cubicmap_image, (Vector3){1.0f, 1.6f, 1.0f}));
 
         printf("    Loading model...\n");
         cubicmap_models.push_back(LoadModelFromMesh(cubicmap_meshes[i]));

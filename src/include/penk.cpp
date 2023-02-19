@@ -20,6 +20,14 @@ void PenkAssert(bool boolean, const char* error) {
     if(!boolean) PenkError((char*)"asserting", error);
 }
 
+int map(int x, int min, int max, int min2, int max2) {
+    return min2 + (max2 - min2) * (x - min) / (max - min);
+}
+
+float sine_between(float min, float max, float t) {
+    return ((max - min) * sinf(t) + max + min) / 2;
+}
+
 #define DIFF(x, y) (x > y ? x - y : y - x)
 
 #endif

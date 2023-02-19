@@ -13,6 +13,8 @@ bool debug_menu = false;
 #include "defSettings.cpp"
 #include "spaceMap.cpp"
 
+#include "penkController.cpp"
+
 #include "penkDebug.cpp"
 
 struct stat info;
@@ -57,17 +59,17 @@ Texture redboy_texture;
 enum Scene {MENU, GAME};
 Scene scene = MENU;
 
-void SwitchToGame(Camera *camera) {
+void SwitchToGame(Camera *camera, Controller *controller) {
+    controller->camera->position = (Vector3){(float)blocks_x/2, 1.0f, (float)blocks_y/2};
+    SwitchToController(controller);
     scene = GAME;
-    camera->position = (Vector3){(float)blocks_x/2, 0.5f, (float)blocks_y/2};
-    SetCameraMode(*camera, CAMERA_FIRST_PERSON);
+    camera->position = (Vector3){(float)blocks_x/2, 1.0f, (float)blocks_y/2};
 }
 
 void SwitchToMenu(Camera *camera) {
     scene = MENU;
     camera->position = (Vector3){-0.3f, 0.0f, 0.0f};
     camera->target = (Vector3){0.0f, 0.0f, 0.0f};
-    SetCameraMode(*camera, CAMERA_CUSTOM);
 }
 
 enum HeldObject {HO_NOTHING, HO_TELEPORT};
@@ -95,6 +97,10 @@ int main(int argc, char** argv) {
     positions = seeds_and_positions.second;
 
     Camera camera = { { 0.0f, 0.0f, 0.0f }, { 1.0f, 0.0f, 0.0f }, { 0.0f, 1.0f, 0.0f }, 45.0f, 0 };
+
+    Controller controller {
+        .camera = &camera
+    };
 
     Model teleport = LoadModel("resources/teleport.obj");
     float teleport_y = .3f;
@@ -128,6 +134,8 @@ int main(int argc, char** argv) {
 
     base_font = LoadFont("resources/font.png");
 
+    SetCameraMode(camera, CAMERA_CUSTOM);
+
     SwitchToMenu(&camera);
 
     current_teleport_position = positions[current_layer];
@@ -150,7 +158,7 @@ int main(int argc, char** argv) {
                     DrawButton(&join_server_button, (Vector2){(float)width / 2 - 155, 425.f}, (Vector2){.6f, .6f}, "Join server", WHITE, 3.f);
                     DrawButton(&settings_button, (Vector2){(float)width / 2 + 155, 425.f}, (Vector2){.6f, .6f}, "Settings", WHITE, 3.f);
                     if(IsButtonPressed(new_game_button)) {
-                        SwitchToGame(&camera);
+                        SwitchToGame(&camera, &controller);
                     }
                 } EndDrawing();
                 break;
@@ -158,7 +166,7 @@ int main(int argc, char** argv) {
 
             case GAME: {
                 Vector3 old_camera_position = camera.position;
-                UpdateCamera(&camera);
+                UpdateController(&controller);
 
                 Vector2 playerPos = { camera.position.x, camera.position.z };
                 float playerRadius = 0.1f;

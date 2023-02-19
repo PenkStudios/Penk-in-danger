@@ -10,7 +10,7 @@ int fps = 60;
 
 int blocks_x = 56;
 int blocks_y = 56;
-int layers = 2;
+int layers = 10;
 int seed = 0; /* random */
 
 std::vector<int> seeds;
