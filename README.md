@@ -7,7 +7,7 @@ Silly game about boy chasing you in retirement home
 
 ## Build from source (Linux)
 1) Download and install raylib from https://github.com/raysan5/raylib/releases
-2) Download and install enet from https://github.com/lsalzman/enet
+2) Download and install enet (the network system) from https://github.com/lsalzman/enet
 3) Clone this repo and build it
 ```
 git clone https://github.com/PenkStudios/Penk-in-danger.git
