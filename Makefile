@@ -32,17 +32,20 @@ release:
 	make separate
 
 separate:
+	rm -rf build/windows
+	rm -rf build/linux
+
 	mkdir -p build/windows
 	mkdir -p build/linux
 
 	cp build/libenet.so.7 build/linux/libenet.so.7
 	cp build/PenkInDanger build/linux/PenkInDanger
 
-	cp -r build/resources build/linux/resources
+	cp -r build/resources build/linux/
 
 	cp build/PenkInDanger.exe build/windows/PenkInDanger.exe
 
-	cp -r build/resources build/windows/resources
+	cp -r build/resources build/windows/
 
 	rm -r build/resources
 	rm build/PenkInDanger
