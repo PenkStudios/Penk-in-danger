@@ -8,7 +8,7 @@ linux:
 	make fixobj
 	rm -rf build/resources
 	cp -r ./resources ./build/resources
-	cp ./libenet.so.7 ./build
+	cp ./lib/libenet.so.7 ./build/libenet.so.7
 	g++ src/main.cpp $(include) $(ldFlags) $(debug) $(optimisation) -o build/PenkInDanger
 
 run:
