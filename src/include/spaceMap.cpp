@@ -149,7 +149,7 @@ std::pair<std::vector<int>, std::vector<std::pair<float, float>>> CreateSpaceMap
 
         printf("%i, %i\n", direction.first, direction.second);
 
-        int maximum = (rand() % mapsize_x * mapsize_y + 1) * (layer + 1);
+        int maximum = (rand() % mapsize_x * mapsize_y + 1) * 2;
         int step = 5;
 
         for(int i = 0; i < maximum; i++) {
@@ -180,8 +180,7 @@ std::pair<std::vector<int>, std::vector<std::pair<float, float>>> CreateSpaceMap
 
                 if(step <= 0) {
                     direction = NewDirection(direction);
-
-                    step = 3 + rand() % 5;
+                    step = 5 + rand() % 15;
                 }
             }
         }
