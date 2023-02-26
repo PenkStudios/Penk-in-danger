@@ -49,11 +49,11 @@ std::pair<int, int> NewDirection(std::pair<int, int> direction) {
 }
 
 int Clamp(int n, int lower, int upper) {
-  return std::max(lower, std::min(n, upper));
+    return std::max(lower, std::min(n, upper));
 }
 
 int Randint(int min, int max) {
-    return min + ( std::rand() % ( max - min + 1 ) );
+    return min + (std::rand() % (max - min + 1));
 }
 
 std::pair<int, int> ReverseDirection(std::pair<int, int> direction) {
