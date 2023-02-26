@@ -1,6 +1,6 @@
-/* WARNING: Bad code
-            You may suffer mental damage while reading this
-            You've been warned */
+/*
+Kinda bad code
+*/
 
 #include <vector>
 #include <time.h>
@@ -10,12 +10,12 @@ bool debug_menu = false;
 
 #include "penk.cpp"
 #include "penkGraphics.cpp"
-#include "defSettings.cpp"
-#include "spaceMap.cpp"
+
+#include "settings.cpp"
+#include "spacemap.cpp"
+#include "debug.cpp"
 
 #include "penkController.cpp"
-
-#include "penkDebug.cpp"
 
 struct stat info;
 
@@ -29,7 +29,8 @@ bool EnvironmentCheck() {
         "resources/redboy.obj",
         "resources/redboy.png",
         "resources/teleport_hand.png",
-        "resources/font.png"
+        "resources/font.png",
+        "resources/house.obj"
     };
     for(const char* dep : deps) {
         if(stat(dep, &info) != 0) return false;
@@ -51,8 +52,6 @@ void GameInit() {
     CenterWindow(width, height);
 }
 
-using SeedsAndPositions = std::pair<std::vector<int>, std::vector<std::pair<float, float>>>;
-
 Image redboy_image;
 Texture redboy_texture;
 
@@ -68,7 +67,7 @@ void SwitchToGame(Camera *camera, Controller *controller) {
 
 void SwitchToMenu(Camera *camera) {
     scene = MENU;
-    camera->position = (Vector3){-0.3f, 0.0f, 0.0f};
+    camera->position = (Vector3){-0.3f, 2.0f, 0.0f};
     camera->target = (Vector3){0.0f, 0.0f, 0.0f};
 }
 
@@ -92,21 +91,22 @@ int main(int argc, char** argv) {
     GameInit();    
 
     printf("[PENK] Preparing to call 'createSpaceMap'...\n");
-    SeedsAndPositions seeds_and_positions = CreateSpaceMap(blocks_x, blocks_y, layers, seed, MAPTYPE_NORMAL, 0);
-    seeds = seeds_and_positions.first;
-    positions = seeds_and_positions.second;
+    SpaceMapType space_data = CreateSpaceMap(blocks_x, blocks_y, layers, seed, MAPTYPE_NORMAL, 0);
+    seeds = std::get<0>(space_data);
+    positions = std::get<1>(space_data);
+    furniture_positions = std::get<2>(space_data);
 
     Camera camera = { { 0.0f, 0.0f, 0.0f }, { 1.0f, 0.0f, 0.0f }, { 0.0f, 1.0f, 0.0f }, 45.0f, 0 };
 
-    Controller controller {
-        .camera = &camera
-    };
+    Controller controller;
+    controller.camera = &camera;
 
     Model teleport = LoadModel("resources/teleport.obj");
     float teleport_y = .3f;
     float teleport_switch = .2f;
 
     Model redboy = LoadModel("resources/redboy.obj");
+    Model house = LoadModel("resources/house.obj");
 
     teleport_hand = LoadTexture("resources/teleport_hand.png");
 
@@ -134,23 +134,24 @@ int main(int argc, char** argv) {
 
     base_font = LoadFont("resources/font.png");
 
-    SetCameraMode(camera, CAMERA_CUSTOM);
-
     SwitchToMenu(&camera);
 
     current_teleport_position = positions[current_layer];
 
+    std::vector<Model> furniture = LoadFurniture();
+
     SetTargetFPS(fps);
+
     SetExitKey(0);
 
     while(!WindowShouldClose()) {
         switch(scene) {
             case MENU: {
                 BeginDrawing(); {
-                    ClearBackground(Color{10, 0, 0, 255});
+                    ClearBackground(Color{10, 128, 180, 255});
+                    
                     BeginMode3D(camera); {
-                        redboy.transform = MatrixMultiply(redboy.transform, MatrixRotateY(-1.5f * GetFrameTime()));
-                        DrawModel(redboy, (Vector3){0, 0, 0}, .1f, WHITE);
+                        DrawModel(house, (Vector3){0, 0, 0}, .1f, WHITE);
                     } EndMode3D();
                     DrawTextureScale(title, (Vector2){(float)width / 2, 150.f}, (Vector2){6.7f, 6.2f}, WHITE);
                     DrawButton(&new_game_button, (Vector2){(float)width / 2 - 155, 325.f}, (Vector2){.6f, .6f}, "New game", WHITE, 3.f);
@@ -194,6 +195,7 @@ int main(int argc, char** argv) {
                     ClearBackground(Color{50, 100, 150, 0});
                     BeginMode3D(camera); {
                         UpdateSpaceMap();
+                        DrawFurniture(furniture, furniture_positions);
                         if(held_object == HO_TELEPORT) {
                             if(IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
                                 held_object = HO_NOTHING;
@@ -239,6 +241,7 @@ int main(int argc, char** argv) {
 
     UnloadModel(teleport);
     UnloadModel(redboy);
+    UnloadModel(house);
 
     UnloadTexture(redboy_texture);
     UnloadTexture(title);
@@ -247,6 +250,8 @@ int main(int argc, char** argv) {
     UnloadButton(new_server_button);
     UnloadButton(join_server_button);
     UnloadButton(settings_button);
+
+    FurnitureFree(furniture);
 
     CloseWindow();
 }

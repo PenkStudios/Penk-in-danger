@@ -27,6 +27,7 @@ debug:
 	make linux debug=-g
 
 release:
+	rm -r ./build/*
 	make linux optimisation=-O2
 	make win optimisation=-O2
 	make separate

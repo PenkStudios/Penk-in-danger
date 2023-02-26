@@ -1,5 +1,5 @@
-#ifndef PENK_G_HPP
-#define PENK_G_HPP
+#ifndef PENK_G_CPP
+#define PENK_G_CPP
 
 #include <raylib.h>
 

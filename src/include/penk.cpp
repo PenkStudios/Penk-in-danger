@@ -1,5 +1,5 @@
-#ifndef PENK_HPP
-#define PENK_HPP
+#ifndef PENK_CPP
+#define PENK_CPP
 
 #include <stdio.h>
 #include <stdlib.h>
