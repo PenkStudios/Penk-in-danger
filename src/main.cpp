@@ -39,6 +39,8 @@ bool EnvironmentCheck() {
 }
 
 void GameInit() {
+    srand(time(NULL));
+
     printf("[PENK] Checking environment...");
 
     if(!EnvironmentCheck()) {
@@ -60,15 +62,16 @@ Scene scene = MENU;
 
 void SwitchToGame(Camera *camera, Controller *controller) {
     controller->camera->position = (Vector3){(float)blocks_x/2, 1.0f, (float)blocks_y/2};
-    SwitchToController(controller);
+    SwitchToController(controller, PENK_FIRST_PERSON);
     scene = GAME;
     camera->position = (Vector3){(float)blocks_x/2, 1.0f, (float)blocks_y/2};
 }
 
-void SwitchToMenu(Camera *camera) {
+void SwitchToMenu(Camera *camera, Controller *controller) {
     scene = MENU;
     camera->position = (Vector3){-0.3f, 2.0f, 0.0f};
     camera->target = (Vector3){0.0f, 0.0f, 0.0f};
+    SwitchToController(controller, PENK_ORBITAL);
 }
 
 enum HeldObject {HO_NOTHING, HO_TELEPORT};
@@ -91,10 +94,9 @@ int main(int argc, char** argv) {
     GameInit();    
 
     printf("[PENK] Preparing to call 'createSpaceMap'...\n");
-    SpaceMapType space_data = CreateSpaceMap(blocks_x, blocks_y, layers, seed, MAPTYPE_NORMAL, 0);
-    seeds = std::get<0>(space_data);
-    positions = std::get<1>(space_data);
-    furniture_positions = std::get<2>(space_data);
+    SpaceMapType space_data = CreateSpaceMap(blocks_x, blocks_y, layers);
+    positions = std::get<0>(space_data);
+    furniture_positions = std::get<1>(space_data);
 
     Camera camera = { { 0.0f, 0.0f, 0.0f }, { 1.0f, 0.0f, 0.0f }, { 0.0f, 1.0f, 0.0f }, 45.0f, 0 };
 
@@ -102,8 +104,6 @@ int main(int argc, char** argv) {
     controller.camera = &camera;
 
     Model teleport = LoadModel("resources/teleport.obj");
-    float teleport_y = .3f;
-    float teleport_switch = .2f;
 
     Model redboy = LoadModel("resources/redboy.obj");
     Model house = LoadModel("resources/house.obj");
@@ -134,7 +134,7 @@ int main(int argc, char** argv) {
 
     base_font = LoadFont("resources/font.png");
 
-    SwitchToMenu(&camera);
+    SwitchToMenu(&camera, &controller);
 
     current_teleport_position = positions[current_layer];
 
@@ -149,7 +149,8 @@ int main(int argc, char** argv) {
             case MENU: {
                 BeginDrawing(); {
                     ClearBackground(Color{10, 128, 180, 255});
-                    
+                    UpdateController(&controller);
+
                     BeginMode3D(camera); {
                         DrawModel(house, (Vector3){0, 0, 0}, .1f, WHITE);
                     } EndMode3D();
@@ -203,29 +204,22 @@ int main(int argc, char** argv) {
                             } else if(IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
                                 held_object = HO_NOTHING;
                                 positions[current_layer] = std::make_pair(camera.position.z, camera.position.x);
-                                camera.position = (Vector3){current_teleport_position.second, 0.5f, current_teleport_position.first};
+                                camera.position = (Vector3){current_teleport_position.second, 1.0f, current_teleport_position.first};
                                 current_layer++;
                                 current_teleport_position = positions[current_layer];
                             }
                         } else if(held_object == HO_NOTHING) {
-                            teleport_y += teleport_switch / 42;
-                            if(teleport_y > .38) {
-                                teleport_switch -= GetFrameTime() * 1.2;
-                            } else if(teleport_y < .42) {
-                                teleport_switch += GetFrameTime() * 1.2;
-                            }
-
                             float y = positions[current_layer].first;
                             float x = positions[current_layer].second;
 
-                            bool collide = GetItemCollision((Vector3){x, teleport_y, y}, 1.f, camera);
+                            bool collide = GetItemCollision((Vector3){x, 1.f, y}, 1.f, camera);
 
                             if(collide && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
                                 held_object = HO_TELEPORT;
                                 positions[current_layer] = no_position;
                             }
 
-                            DrawModel(teleport, (Vector3){x, teleport_y, y}, .1f, WHITE);
+                            DrawModel(teleport, (Vector3){x, sine_between(.6f, 0.9f, GetTime()*4), y}, .15f, WHITE);
                             teleport.transform = MatrixMultiply(teleport.transform, MatrixRotateY(-1.5f * GetFrameTime()));
                         }
                     } EndMode3D();

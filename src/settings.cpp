@@ -15,7 +15,6 @@ int blocks_y = 56;
 int layers = 10;
 int seed = 0; /* random */
 
-std::vector<int> seeds;
 std::vector<std::pair<float, float>> positions;
 std::vector<std::vector<std::pair<std::pair<int, int>, std::pair<int, int>>>> furniture_positions;
 int max_furniture = 4;

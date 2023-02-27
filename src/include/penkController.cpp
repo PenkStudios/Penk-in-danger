@@ -12,6 +12,8 @@ struct MovementKeys {
     int right = KEY_A;
 };
 
+enum PenkControllerMode {PENK_FIRST_PERSON, PENK_ORBITAL};
+
 struct Controller {
     Camera *camera;
     MovementKeys movement_keys;
@@ -29,6 +31,8 @@ struct Controller {
     float look_min_clamp = 89.0f;
     float look_max_clamp = -89.0f;
     bool swing = true;
+    PenkControllerMode mode;
+
 };
 
 #ifndef PI
@@ -43,7 +47,7 @@ struct Controller {
     #define RAD2DEG (180.0f/PI)
 #endif
 
-void SwitchToController(Controller *controller) {
+void SwitchToController(Controller *controller, PenkControllerMode mode) {
     Vector3 v1 = controller->camera->position;
     Vector3 v2 = controller->camera->target;
 
@@ -55,7 +59,11 @@ void SwitchToController(Controller *controller) {
 
     controller->angle.x = atan2f(dx, dz);
     controller->angle.y = atan2f(dy, sqrtf(dx*dx + dz*dz));
-    DisableCursor();
+    
+    if(mode == PENK_FIRST_PERSON) DisableCursor();
+    else EnableCursor();
+
+    controller->mode = mode;
 }
 
 Vector3 right = {0.f, 0.f, 1.f};
@@ -69,94 +77,103 @@ Vector3 left = {0.f, 0.f, -1.f};
 int sine_time = GetTime();
 
 void UpdateController(Controller *controller) {
-    bool directions[4] = {IsKeyDown(controller->movement_keys.forward),
-                          IsKeyDown(controller->movement_keys.backward),
-                          IsKeyDown(controller->movement_keys.right),
-                          IsKeyDown(controller->movement_keys.left)};
+    if(controller->mode == PENK_FIRST_PERSON) {
+        bool directions[4] = {IsKeyDown(controller->movement_keys.forward),
+                              IsKeyDown(controller->movement_keys.backward),
+                              IsKeyDown(controller->movement_keys.right),
+                              IsKeyDown(controller->movement_keys.left)};
 
-    Vector2 mouse_position_delta = GetMouseDelta();
+        Vector2 mouse_position_delta = GetMouseDelta();
 
-    controller->running = IsKeyDown(KEY_LEFT_SHIFT);
-    controller->camera->position.x += (sinf(controller->angle.x)*directions[MOVE_BACK] -
-                            sinf(controller->angle.x)*directions[MOVE_FRONT] -
-                            cosf(controller->angle.x)*directions[MOVE_LEFT] +
-                            cosf(controller->angle.x)*directions[MOVE_RIGHT])*(controller->running ? controller->run_speed : controller->walk_speed)*GetFrameTime();
+        controller->running = IsKeyDown(KEY_LEFT_SHIFT);
+        controller->camera->position.x += (sinf(controller->angle.x)*directions[MOVE_BACK] -
+                                sinf(controller->angle.x)*directions[MOVE_FRONT] -
+                                cosf(controller->angle.x)*directions[MOVE_LEFT] +
+                                cosf(controller->angle.x)*directions[MOVE_RIGHT])*(controller->running ? controller->run_speed : controller->walk_speed)*GetFrameTime();
 
-    controller->camera->position.z += (cosf(controller->angle.x)*directions[MOVE_BACK] -
-                           cosf(controller->angle.x)*directions[MOVE_FRONT] +
-                           sinf(controller->angle.x)*directions[MOVE_LEFT] -
-                           sinf(controller->angle.x)*directions[MOVE_RIGHT])*(controller->running ? controller->run_speed : controller->walk_speed)*GetFrameTime();
+        controller->camera->position.z += (cosf(controller->angle.x)*directions[MOVE_BACK] -
+                               cosf(controller->angle.x)*directions[MOVE_FRONT] +
+                               sinf(controller->angle.x)*directions[MOVE_LEFT] -
+                               sinf(controller->angle.x)*directions[MOVE_RIGHT])*(controller->running ? controller->run_speed : controller->walk_speed)*GetFrameTime();
 
-    controller->angle.x -= mouse_position_delta.x*controller->look_sensitivity*GetFrameTime();
-    controller->angle.y -= mouse_position_delta.y*controller->look_sensitivity*GetFrameTime();
+        controller->angle.x -= mouse_position_delta.x*controller->look_sensitivity*GetFrameTime();
+        controller->angle.y -= mouse_position_delta.y*controller->look_sensitivity*GetFrameTime();
 
-    if (controller->angle.y > controller->look_min_clamp*DEG2RAD) controller->angle.y = controller->look_min_clamp*DEG2RAD;
-    else if (controller->angle.y < controller->look_max_clamp*DEG2RAD) controller->angle.y = controller->look_max_clamp*DEG2RAD;
+        if (controller->angle.y > controller->look_min_clamp*DEG2RAD) controller->angle.y = controller->look_min_clamp*DEG2RAD;
+        else if (controller->angle.y < controller->look_max_clamp*DEG2RAD) controller->angle.y = controller->look_max_clamp*DEG2RAD;
 
-    Matrix matrix_translation = { 1.0f, 0.0f, 0.0f, 0.0f,
-                            0.0f, 1.0f, 0.0f, 0.0f,
-                            0.0f, 0.0f, 1.0f, (controller->target_distance/5.1f),
-                            0.0f, 0.0f, 0.0f, 1.0f };
+        Matrix matrix_translation = { 1.0f, 0.0f, 0.0f, 0.0f,
+                                0.0f, 1.0f, 0.0f, 0.0f,
+                                0.0f, 0.0f, 1.0f, (controller->target_distance/5.1f),
+                                0.0f, 0.0f, 0.0f, 1.0f };
 
-    Matrix matrix_rotation = { 1.0f, 0.0f, 0.0f, 0.0f,
-                           0.0f, 1.0f, 0.0f, 0.0f,
-                           0.0f, 0.0f, 1.0f, 0.0f,
-                           0.0f, 0.0f, 0.0f, 1.0f };
+        Matrix matrix_rotation = { 1.0f, 0.0f, 0.0f, 0.0f,
+                               0.0f, 1.0f, 0.0f, 0.0f,
+                               0.0f, 0.0f, 1.0f, 0.0f,
+                               0.0f, 0.0f, 0.0f, 1.0f };
 
-    float cosz = cosf(0.0f);
-    float sinz = sinf(0.0f);
-    float cosy = cosf(-(PI*2 - controller->angle.x));
-    float siny = sinf(-(PI*2 - controller->angle.x));
-    float cosx = cosf(-(PI*2 - controller->angle.y));
-    float sinx = sinf(-(PI*2 - controller->angle.y));
+        float cosz = cosf(0.0f);
+        float sinz = sinf(0.0f);
+        float cosy = cosf(-(PI*2 - controller->angle.x));
+        float siny = sinf(-(PI*2 - controller->angle.x));
+        float cosx = cosf(-(PI*2 - controller->angle.y));
+        float sinx = sinf(-(PI*2 - controller->angle.y));
 
-    matrix_rotation.m0 = cosz*cosy;
-    matrix_rotation.m4 = (cosz*siny*sinx) - (sinz*cosx);
-    matrix_rotation.m8 = (cosz*siny*cosx) + (sinz*sinx);
-    matrix_rotation.m1 = sinz*cosy;
-    matrix_rotation.m5 = (sinz*siny*sinx) + (cosz*cosx);
-    matrix_rotation.m9 = (sinz*siny*cosx) - (cosz*sinx);
-    matrix_rotation.m2 = -siny;
-    matrix_rotation.m6 = cosy*sinx;
-    matrix_rotation.m10= cosy*cosx;
+        matrix_rotation.m0 = cosz*cosy;
+        matrix_rotation.m4 = (cosz*siny*sinx) - (sinz*cosx);
+        matrix_rotation.m8 = (cosz*siny*cosx) + (sinz*sinx);
+        matrix_rotation.m1 = sinz*cosy;
+        matrix_rotation.m5 = (sinz*siny*sinx) + (cosz*cosx);
+        matrix_rotation.m9 = (sinz*siny*cosx) - (cosz*sinx);
+        matrix_rotation.m2 = -siny;
+        matrix_rotation.m6 = cosy*sinx;
+        matrix_rotation.m10= cosy*cosx;
 
-    Matrix matrix_transform = { 0 };
-    matrix_transform.m0 = matrix_translation.m0*matrix_rotation.m0 + matrix_translation.m1*matrix_rotation.m4 + matrix_translation.m2*matrix_rotation.m8 + matrix_translation.m3*matrix_rotation.m12;
-    matrix_transform.m1 = matrix_translation.m0*matrix_rotation.m1 + matrix_translation.m1*matrix_rotation.m5 + matrix_translation.m2*matrix_rotation.m9 + matrix_translation.m3*matrix_rotation.m13;
-    matrix_transform.m2 = matrix_translation.m0*matrix_rotation.m2 + matrix_translation.m1*matrix_rotation.m6 + matrix_translation.m2*matrix_rotation.m10 + matrix_translation.m3*matrix_rotation.m14;
-    matrix_transform.m3 = matrix_translation.m0*matrix_rotation.m3 + matrix_translation.m1*matrix_rotation.m7 + matrix_translation.m2*matrix_rotation.m11 + matrix_translation.m3*matrix_rotation.m15;
-    matrix_transform.m4 = matrix_translation.m4*matrix_rotation.m0 + matrix_translation.m5*matrix_rotation.m4 + matrix_translation.m6*matrix_rotation.m8 + matrix_translation.m7*matrix_rotation.m12;
-    matrix_transform.m5 = matrix_translation.m4*matrix_rotation.m1 + matrix_translation.m5*matrix_rotation.m5 + matrix_translation.m6*matrix_rotation.m9 + matrix_translation.m7*matrix_rotation.m13;
-    matrix_transform.m6 = matrix_translation.m4*matrix_rotation.m2 + matrix_translation.m5*matrix_rotation.m6 + matrix_translation.m6*matrix_rotation.m10 + matrix_translation.m7*matrix_rotation.m14;
-    matrix_transform.m7 = matrix_translation.m4*matrix_rotation.m3 + matrix_translation.m5*matrix_rotation.m7 + matrix_translation.m6*matrix_rotation.m11 + matrix_translation.m7*matrix_rotation.m15;
-    matrix_transform.m8 = matrix_translation.m8*matrix_rotation.m0 + matrix_translation.m9*matrix_rotation.m4 + matrix_translation.m10*matrix_rotation.m8 + matrix_translation.m11*matrix_rotation.m12;
-    matrix_transform.m9 = matrix_translation.m8*matrix_rotation.m1 + matrix_translation.m9*matrix_rotation.m5 + matrix_translation.m10*matrix_rotation.m9 + matrix_translation.m11*matrix_rotation.m13;
-    matrix_transform.m10 = matrix_translation.m8*matrix_rotation.m2 + matrix_translation.m9*matrix_rotation.m6 + matrix_translation.m10*matrix_rotation.m10 + matrix_translation.m11*matrix_rotation.m14;
-    matrix_transform.m11 = matrix_translation.m8*matrix_rotation.m3 + matrix_translation.m9*matrix_rotation.m7 + matrix_translation.m10*matrix_rotation.m11 + matrix_translation.m11*matrix_rotation.m15;
-    matrix_transform.m12 = matrix_translation.m12*matrix_rotation.m0 + matrix_translation.m13*matrix_rotation.m4 + matrix_translation.m14*matrix_rotation.m8 + matrix_translation.m15*matrix_rotation.m12;
-    matrix_transform.m13 = matrix_translation.m12*matrix_rotation.m1 + matrix_translation.m13*matrix_rotation.m5 + matrix_translation.m14*matrix_rotation.m9 + matrix_translation.m15*matrix_rotation.m13;
-    matrix_transform.m14 = matrix_translation.m12*matrix_rotation.m2 + matrix_translation.m13*matrix_rotation.m6 + matrix_translation.m14*matrix_rotation.m10 + matrix_translation.m15*matrix_rotation.m14;
-    matrix_transform.m15 = matrix_translation.m12*matrix_rotation.m3 + matrix_translation.m13*matrix_rotation.m7 + matrix_translation.m14*matrix_rotation.m11 + matrix_translation.m15*matrix_rotation.m15;
+        Matrix matrix_transform = { 0 };
+        matrix_transform.m0 = matrix_translation.m0*matrix_rotation.m0 + matrix_translation.m1*matrix_rotation.m4 + matrix_translation.m2*matrix_rotation.m8 + matrix_translation.m3*matrix_rotation.m12;
+        matrix_transform.m1 = matrix_translation.m0*matrix_rotation.m1 + matrix_translation.m1*matrix_rotation.m5 + matrix_translation.m2*matrix_rotation.m9 + matrix_translation.m3*matrix_rotation.m13;
+        matrix_transform.m2 = matrix_translation.m0*matrix_rotation.m2 + matrix_translation.m1*matrix_rotation.m6 + matrix_translation.m2*matrix_rotation.m10 + matrix_translation.m3*matrix_rotation.m14;
+        matrix_transform.m3 = matrix_translation.m0*matrix_rotation.m3 + matrix_translation.m1*matrix_rotation.m7 + matrix_translation.m2*matrix_rotation.m11 + matrix_translation.m3*matrix_rotation.m15;
+        matrix_transform.m4 = matrix_translation.m4*matrix_rotation.m0 + matrix_translation.m5*matrix_rotation.m4 + matrix_translation.m6*matrix_rotation.m8 + matrix_translation.m7*matrix_rotation.m12;
+        matrix_transform.m5 = matrix_translation.m4*matrix_rotation.m1 + matrix_translation.m5*matrix_rotation.m5 + matrix_translation.m6*matrix_rotation.m9 + matrix_translation.m7*matrix_rotation.m13;
+        matrix_transform.m6 = matrix_translation.m4*matrix_rotation.m2 + matrix_translation.m5*matrix_rotation.m6 + matrix_translation.m6*matrix_rotation.m10 + matrix_translation.m7*matrix_rotation.m14;
+        matrix_transform.m7 = matrix_translation.m4*matrix_rotation.m3 + matrix_translation.m5*matrix_rotation.m7 + matrix_translation.m6*matrix_rotation.m11 + matrix_translation.m7*matrix_rotation.m15;
+        matrix_transform.m8 = matrix_translation.m8*matrix_rotation.m0 + matrix_translation.m9*matrix_rotation.m4 + matrix_translation.m10*matrix_rotation.m8 + matrix_translation.m11*matrix_rotation.m12;
+        matrix_transform.m9 = matrix_translation.m8*matrix_rotation.m1 + matrix_translation.m9*matrix_rotation.m5 + matrix_translation.m10*matrix_rotation.m9 + matrix_translation.m11*matrix_rotation.m13;
+        matrix_transform.m10 = matrix_translation.m8*matrix_rotation.m2 + matrix_translation.m9*matrix_rotation.m6 + matrix_translation.m10*matrix_rotation.m10 + matrix_translation.m11*matrix_rotation.m14;
+        matrix_transform.m11 = matrix_translation.m8*matrix_rotation.m3 + matrix_translation.m9*matrix_rotation.m7 + matrix_translation.m10*matrix_rotation.m11 + matrix_translation.m11*matrix_rotation.m15;
+        matrix_transform.m12 = matrix_translation.m12*matrix_rotation.m0 + matrix_translation.m13*matrix_rotation.m4 + matrix_translation.m14*matrix_rotation.m8 + matrix_translation.m15*matrix_rotation.m12;
+        matrix_transform.m13 = matrix_translation.m12*matrix_rotation.m1 + matrix_translation.m13*matrix_rotation.m5 + matrix_translation.m14*matrix_rotation.m9 + matrix_translation.m15*matrix_rotation.m13;
+        matrix_transform.m14 = matrix_translation.m12*matrix_rotation.m2 + matrix_translation.m13*matrix_rotation.m6 + matrix_translation.m14*matrix_rotation.m10 + matrix_translation.m15*matrix_rotation.m14;
+        matrix_transform.m15 = matrix_translation.m12*matrix_rotation.m3 + matrix_translation.m13*matrix_rotation.m7 + matrix_translation.m14*matrix_rotation.m11 + matrix_translation.m15*matrix_rotation.m15;
 
-    controller->camera->target.x = controller->camera->position.x - matrix_transform.m12;
-    controller->camera->target.y = controller->camera->position.y - matrix_transform.m13;
-    controller->camera->target.z = controller->camera->position.z - matrix_transform.m14;
+        controller->camera->target.x = controller->camera->position.x - matrix_transform.m12;
+        controller->camera->target.y = controller->camera->position.y - matrix_transform.m13;
+        controller->camera->target.z = controller->camera->position.z - matrix_transform.m14;
 
-    bool pressing_key = false;
-    for(int index = 0; index < 4; index++) {
-        if(directions[index]) {
-            pressing_key = true;
-            break;
+        bool pressing_key = false;
+        for(int index = 0; index < 4; index++) {
+            if(directions[index]) {
+                pressing_key = true;
+                break;
+            }
         }
-    }
 
-    if(pressing_key) {
-        controller->camera->position.y = sine_between(.95f, 1.05f, sine_time != -1 ? sine_time : GetTime()*8);
-        sine_time = -1;
-    } else {
-        if(sine_time == -1) {
-            sine_time = GetTime()*8;
+        if(pressing_key) {
+            controller->camera->position.y = sine_between(.95f, 1.05f, sine_time != -1 ? sine_time : GetTime()*8);
+            sine_time = -1;
+        } else {
+            if(sine_time == -1) {
+                sine_time = GetTime()*8;
+            }
         }
+    } else if(controller->mode == PENK_ORBITAL) {
+        controller->angle.x += 0.01f;
+        controller->target_distance = sine_between(2.2f /* 2.2 when?? */, 6.f, GetTime());
+
+        controller->camera->position.x = (sinf(controller->angle.x)*controller->target_distance*cosf(controller->angle.y) + controller->camera->target.x)*10;
+        controller->camera->position.y = ((controller->angle.y <= 0.0f)? 1 : -1)*sinf(controller->angle.y)*controller->target_distance*sinf(controller->angle.y) + controller->camera->target.y;
+        controller->camera->position.z = (cosf(controller->angle.x)*controller->target_distance*cosf(controller->angle.y) + controller->camera->target.z)*10;
     }
 }
 

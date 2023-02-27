@@ -46,14 +46,7 @@ void DebugHandleKeys() {
             current_layer--;
             if(current_layer < 0) current_layer = max_layers - 1;
         }
-        if(IsKeyPressed(KEY_R)) {
-            SpaceClear();
-            CreateSpaceMap(blocks_x, blocks_y, layers, seeds[current_layer], MAPTYPE_NORMAL, current_layer);
-        } else if(IsKeyPressed(KEY_T)) {
-            SpaceClear();
-            CreateSpaceMap(blocks_x, blocks_y, layers, seeds[current_layer], MAPTYPE_WIREFRAME, current_layer);
-        }
-        DrawDebugText(TextFormat("Current layer: %i", current_layer), 1);
+        DrawDebugText(TextFormat("Current layer: %i, press arrow keys to change layer", current_layer), 1);
     }
 }
 #endif // PENK_SMAP_CPP

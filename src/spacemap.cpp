@@ -100,17 +100,18 @@ std::pair<int, int> ShiftCoords(std::pair<int, int> coords, int x, int y) {
     return std::make_pair(coords.first + x, coords.second + y);
 }
 
-enum MapType {MAPTYPE_NORMAL, MAPTYPE_WIREFRAME};
+using SpaceMapType = std::tuple<std::vector<std::pair<float, float>>, std::vector<std::vector<std::pair<std::pair<int, int>, std::pair<int, int>>>>>;
+using FurnitureType = std::vector<std::vector<std::pair<std::pair<int, int>, std::pair<int, int>>>>;
+using PositionsType = std::vector<std::pair<float, float>>;
+using Vector2D = std::pair<int, int>;
+using Vector2Df = std::pair<float, float>;
 
-using SpaceMapType = std::tuple<std::vector<int>, std::vector<std::pair<float, float>>, std::vector<std::vector<std::pair<std::pair<int, int>, std::pair<int, int>>>>>;
-
-SpaceMapType CreateSpaceMap(int mapsize_x, int mapsize_y, int up, int seed, MapType map_type, int layer) {
+SpaceMapType CreateSpaceMap(int mapsize_x, int mapsize_y, int up) {
     printf("[PENK.SMAP] Images (layers) to write: %i\n", up);
     printf("[PENK.SMAP] Map size: %i, %i\n", mapsize_x, mapsize_y);
 
-    std::vector<int> seeds;
-    std::vector<std::pair<float, float>> out_positions;
-    std::vector<std::vector<std::pair<std::pair<int, int>, std::pair<int, int>>>> furniture_positions;
+    PositionsType out_positions;
+    FurnitureType furniture_positions;
 
     int output_seed;
 
@@ -125,26 +126,13 @@ SpaceMapType CreateSpaceMap(int mapsize_x, int mapsize_y, int up, int seed, MapT
             }
     }
 
-    std::pair<int, int> coords = std::make_pair(mapsize_x / 2, mapsize_y / 2);
-    // randint(1, mapsize_x - 1), randint(1, mapsize_y - 1)
-    // (must be in center)
+    Vector2D coords = std::make_pair(mapsize_x / 2, mapsize_y / 2);
 
     printf("    Generation step 1 : \"Map creating base algorithm\" ");
 
-    std::pair<int, int> direction = NewDirection(no_direction);
+    Vector2D direction = NewDirection(no_direction);
 
     for(int layer = 0; layer < up; layer++) {
-        if(seed == 0) {
-            output_seed = time(NULL);
-            printf("seed=%i (random)\n", output_seed);
-            srand(output_seed);
-        } else {
-            printf("seed=%i\n", seed);
-            output_seed = seed;
-            srand((unsigned int)seed);
-        }
-        seeds.push_back(output_seed);
-
         int start_point = GetPixel(coords, mapsize_x);
         rgb[layer][start_point] = 50;
         rgb[layer][start_point + 1] = 50;
@@ -159,6 +147,10 @@ SpaceMapType CreateSpaceMap(int mapsize_x, int mapsize_y, int up, int seed, MapT
         for(int i = 0; i < maximum; i++) {
             step--;
             room_step--;
+
+            coords.first += direction.first;
+            coords.second += direction.second;
+
             if(i >= maximum - 1) {
                 out_positions.push_back(coords);
                 rgb[layer][GetPixel(coords, mapsize_x)] = 50;
@@ -166,8 +158,6 @@ SpaceMapType CreateSpaceMap(int mapsize_x, int mapsize_y, int up, int seed, MapT
                 rgb[layer][GetPixel(coords, mapsize_x) + 2] = 50;
                 continue;
             }
-            coords.first += direction.first;
-            coords.second += direction.second;
 
             if(InBorder(coords, mapsize_x, mapsize_y)) {
                 coords.first -= direction.first;
@@ -183,14 +173,14 @@ SpaceMapType CreateSpaceMap(int mapsize_x, int mapsize_y, int up, int seed, MapT
                     int room_size = 2 + rand() % 4;
                     for(int x = coords.first - room_size / 2; x < coords.first + room_size / 2; x++) {
                         for(int y = coords.second - room_size / 2; y < coords.second + room_size / 2; y++) {
-                            std::pair<int, int> pix_coords = std::make_pair(Clamp(x, 1, mapsize_x - 2), Clamp(y, 1, mapsize_y - 2));
-                            rgb[layer][GetPixel(pix_coords, mapsize_x)] = 50;
-                            rgb[layer][GetPixel(pix_coords, mapsize_x) + 1] = 50;
-                            rgb[layer][GetPixel(pix_coords, mapsize_x) + 2] = 50;
+                            Vector2D pixel_coords = std::make_pair(Clamp(x, 1, mapsize_x - 2), Clamp(y, 1, mapsize_y - 2));
+                            rgb[layer][GetPixel(pixel_coords, mapsize_x)] = 50;
+                            rgb[layer][GetPixel(pixel_coords, mapsize_x) + 1] = 50;
+                            rgb[layer][GetPixel(pixel_coords, mapsize_x) + 2] = 50;
                             if(rand() % 25 < 2) {
                                 bool found = false;
                                 for(auto position : furniture_positions[layer]) {
-                                    if(position.first == pix_coords) {
+                                    if(position.first == pixel_coords) {
                                         found = true;
                                         break;
                                     }
@@ -198,7 +188,7 @@ SpaceMapType CreateSpaceMap(int mapsize_x, int mapsize_y, int up, int seed, MapT
 
                                 if(found) continue;
 
-                                furniture_positions[layer].push_back(std::make_pair(pix_coords, std::make_pair(rand() % max_furniture, rand() % 360)));
+                                furniture_positions[layer].push_back(std::make_pair(pixel_coords, std::make_pair(rand() % max_furniture, rand() % 360)));
                             }
                         }
                     }
@@ -222,14 +212,14 @@ SpaceMapType CreateSpaceMap(int mapsize_x, int mapsize_y, int up, int seed, MapT
     for(int layer = 0; layer < up; layer++) {
         for(int x = 0; x < mapsize_x; x++) {
             for(int y = 0; y < mapsize_y; y++) {
-                std::pair<int, int> coords = std::make_pair(x, y);
+                Vector2D coords = std::make_pair(x, y);
                 int current_pixel = GetPixel(coords, mapsize_x);
                 if(rgb[layer][current_pixel] != 50) continue;
                 rgb[layer][current_pixel] = 10;
                 rgb[layer][current_pixel + 1] = 10;
                 rgb[layer][current_pixel + 2] = 10;
                 
-                for(std::pair<int, int> direction : directions) {
+                for(Vector2D direction : directions) {
                     int pixel = GetPixel(ShiftCoords(coords, direction.first, direction.second), mapsize_x);
                     if(rgb[layer][pixel] == 0) {
                         rgb[layer][pixel] = 255;
@@ -246,7 +236,7 @@ SpaceMapType CreateSpaceMap(int mapsize_x, int mapsize_y, int up, int seed, MapT
     for(int layer = 0; layer < up; layer++) {
         for(int x = 0; x < mapsize_x; x++) {
             for(int y = 0; y < mapsize_y; y++) {
-                std::pair<int, int> coords = std::make_pair(x, y);
+                Vector2D coords = std::make_pair(x, y);
                 int current_pixel = GetPixel(coords, mapsize_x);
                 if(rgb[layer][current_pixel] == 10) {
                     rgb[layer][current_pixel] = 0;
@@ -284,22 +274,7 @@ SpaceMapType CreateSpaceMap(int mapsize_x, int mapsize_y, int up, int seed, MapT
         cubicmap_models.push_back(LoadModelFromMesh(cubicmap_meshes[i]));
 
         printf("    Loading atlas texture...\n");
-        const char* path = NULL;
-        switch(map_type)
-        {
-        case MAPTYPE_NORMAL:
-            path = "resources/atlas.png";
-            break;
-        
-        case MAPTYPE_WIREFRAME:
-            path = "resources/wireframe.png";
-            break;
-
-        default:
-            printf("[PENK.SMAP] Invalid map type!\n");
-            break;
-        }
-        atlas_textures.push_back(LoadTexture(path));
+        atlas_textures.push_back(LoadTexture("resources/atlas.png"));
         cubicmap_models[i].materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = atlas_textures[i];
 
         printf("    Loading colors...\n");
@@ -307,10 +282,13 @@ SpaceMapType CreateSpaceMap(int mapsize_x, int mapsize_y, int up, int seed, MapT
         UnloadImage(cubicmap_image);
     }
 
-    current_layer = layer;
     max_layers = up;
 
-    return std::make_tuple(seeds, out_positions, furniture_positions);
+    if(seed != 0) {
+        srand(time(NULL));
+    }
+
+    return std::make_tuple(out_positions, furniture_positions);
 }
 
 void UpdateSpaceMap() {
@@ -334,7 +312,7 @@ std::vector<Model> LoadFurniture() {
     return output;
 }
 
-void DrawFurniture(std::vector<Model> furnitures, std::vector<std::vector<std::pair<std::pair<int, int>, std::pair<int, int>>>> furniture_positions) {
+void DrawFurniture(std::vector<Model> furnitures, FurnitureType furniture_positions) {
     for(auto position : furniture_positions[current_layer]) {
         if(position.second.first == -10000) continue;
         DrawModelEx(furnitures[position.second.first], (Vector3){(float)position.first.second, .15f, (float)position.first.first}, (Vector3){0, 1, 0}, position.second.second, (Vector3){1.f, 1.f, 1.f}, WHITE);
