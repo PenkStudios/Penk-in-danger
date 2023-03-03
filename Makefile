@@ -25,6 +25,7 @@ fixobj:
 
 debug:
 	make linux debug=-g
+	cd build && gdb ./PenkInDanger
 
 release:
 	rm -r ./build/*

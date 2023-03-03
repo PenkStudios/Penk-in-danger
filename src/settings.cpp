@@ -10,13 +10,11 @@ const char* window_title = "Penk in danger";
 
 int fps = 60;
 
-int blocks_x = 56;
-int blocks_y = 56;
-int layers = 10;
+int blocks_x = 26;
+int blocks_y = 26;
+int layers = 1;
 int seed = 0; /* random */
 
-std::vector<std::pair<float, float>> positions;
-std::vector<std::vector<std::pair<std::pair<int, int>, std::pair<int, int>>>> furniture_positions;
 int max_furniture = 4;
 
 #endif // PENK_DEF_CPP

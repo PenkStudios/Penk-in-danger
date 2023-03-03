@@ -24,28 +24,30 @@ std::vector<Color*> map_pixels_vector;
 int current_layer;
 int max_layers;
 
-int GetPixel(std::pair<int, int> coords, int width) {
-    return (coords.first * width + coords.second) * 3;
+struct Furniture {
+    PenkVector2 position;
+    int id;
+    float rotation;
+};
+
+int GetPixel(PenkVector2 coords, int width) {
+    return (coords.x * width + coords.y) * 3;
 }
 
-bool InBorder(std::pair<int, int> coords, int width, int height) {
-    return (coords.first < 1 || coords.second < 1) ||
-        (coords.first > width - 2 || coords.second > height - 2) ? true : false;
+bool InBorder(PenkVector2 coords, int width, int height) {
+    return (coords.x < 1 || coords.y < 1) ||
+        (coords.x > width - 2 || coords.y > height - 2);
 }
 
-std::pair<int, int> directions[] = {{0, -1}, {1, 0}, {0, 1}, {-1, 0}}; // B(ack) R(ight) U(p) L(eft)
+PenkVector2 directions[] = {{0, -1}, {1, 0}, {0, 1}, {-1, 0}}; // B(ack) R(ight) U(p) L(eft)
 
-std::pair<int, int> no_direction = std::make_pair(-1000, -1000);
+PenkVector2 no_direction {-1000, -1000};
 
-std::pair<int, int> NewDirection(std::pair<int, int> direction) {
-    std::pair<int, int> new_direction;
-    while(direction == new_direction) {
-        new_direction = directions[rand() % 4];
-        if(direction == no_direction) {
-            break;
-        }
-    }
-    return new_direction;
+PenkVector2 NewDirection(PenkVector2 direction) {
+    int index = rand() % 4;
+
+    return (directions[index].x == direction.x &&
+            directions[index].y == direction.y) ? directions[(index + 1) % 4] : directions[index];
 }
 
 int Clamp(int n, int lower, int upper) {
@@ -56,30 +58,30 @@ int Randint(int min, int max) {
     return min + (std::rand() % (max - min + 1));
 }
 
-std::pair<int, int> ReverseDirection(std::pair<int, int> direction) {
-    std::pair<int, int> output;
-    if(direction.first != 0) {
-        output.first = direction.first * -1;
+PenkVector2 ReverseDirection(PenkVector2 direction) {
+    PenkVector2 output;
+    if(direction.x != 0) {
+        output.x = direction.x * -1;
     } else {
-        output.first = 0;
+        output.x = 0;
     }
-    if(direction.second != 0) {
-        output.second = direction.second * -1;
+    if(direction.y != 0) {
+        output.y = direction.y * -1;
     } else {
-        output.second = 0;
+        output.y = 0;
     }
     return output;
 }
 
-std::pair<int, int> ShiftDirection(std::pair<int, int> direction) {
+PenkVector2 ShiftDirection(PenkVector2 direction) {
     int index = 0;
     for(int i = 0; i < 5; i++) {
-        if(directions[i] == direction) {
+        if(directions[i].x == direction.x && directions[i].y == direction.y) {
             index = i;
             break;
         }
         if(i > 3) {
-            return std::make_pair(0, 0);
+            return PenkVector2{0, 0};
         }
     }
     index++;
@@ -90,21 +92,23 @@ std::pair<int, int> ShiftDirection(std::pair<int, int> direction) {
     return directions[index];
 }
 
-int NearCorner(std::pair<int, int> coords) {
-    return (DIFF(coords.first, blocks_x) * DIFF(coords.second, blocks_y)) + 1;
+int NearCorner(PenkVector2 coords) {
+    return (DIFF(coords.x, blocks_x) * DIFF(coords.y, blocks_y)) + 1;
 }
 
-std::pair<float, float> current_teleport_position;
+PenkVector2 current_teleport_position;
 
-std::pair<int, int> ShiftCoords(std::pair<int, int> coords, int x, int y) {
-    return std::make_pair(coords.first + x, coords.second + y);
+PenkVector2 ShiftCoords(PenkVector2 coords, int x, int y) {
+    return PenkVector2{coords.x + x, coords.y + y};
 }
 
-using SpaceMapType = std::tuple<std::vector<std::pair<float, float>>, std::vector<std::vector<std::pair<std::pair<int, int>, std::pair<int, int>>>>>;
-using FurnitureType = std::vector<std::vector<std::pair<std::pair<int, int>, std::pair<int, int>>>>;
-using PositionsType = std::vector<std::pair<float, float>>;
-using Vector2D = std::pair<int, int>;
-using Vector2Df = std::pair<float, float>;
+struct SpaceMapType {
+    std::vector<PenkVector2> positions;
+    std::vector<std::vector<Furniture>> furniture;
+};
+
+using FurnitureType = std::vector<std::vector<Furniture>>;
+using PositionsType = std::vector<PenkVector2>;
 
 SpaceMapType CreateSpaceMap(int mapsize_x, int mapsize_y, int up) {
     printf("[PENK.SMAP] Images (layers) to write: %i\n", up);
@@ -126,11 +130,11 @@ SpaceMapType CreateSpaceMap(int mapsize_x, int mapsize_y, int up) {
             }
     }
 
-    Vector2D coords = std::make_pair(mapsize_x / 2, mapsize_y / 2);
+    PenkVector2 coords {mapsize_x / 2, mapsize_y / 2};
 
     printf("    Generation step 1 : \"Map creating base algorithm\" ");
 
-    Vector2D direction = NewDirection(no_direction);
+    PenkVector2 direction = NewDirection(no_direction);
 
     for(int layer = 0; layer < up; layer++) {
         int start_point = GetPixel(coords, mapsize_x);
@@ -148,8 +152,8 @@ SpaceMapType CreateSpaceMap(int mapsize_x, int mapsize_y, int up) {
             step--;
             room_step--;
 
-            coords.first += direction.first;
-            coords.second += direction.second;
+            coords.x += direction.x;
+            coords.y += direction.y;
 
             if(i >= maximum - 1) {
                 out_positions.push_back(coords);
@@ -160,27 +164,29 @@ SpaceMapType CreateSpaceMap(int mapsize_x, int mapsize_y, int up) {
             }
 
             if(InBorder(coords, mapsize_x, mapsize_y)) {
-                coords.first -= direction.first;
-                coords.second -= direction.second;
+                printf("In border: %i, %i\n", coords.x, coords.y);
+                coords.x -= direction.x;
+                coords.y -= direction.y;
                 direction = ReverseDirection(direction);
                 continue;
             } else {
+                printf("Not in border\n");
                 if(!(rand() % NearCorner(coords))) {
                     direction = ShiftDirection(direction);
                 }
 
                 if(room_step <= 0) {
                     int room_size = 2 + rand() % 4;
-                    for(int x = coords.first - room_size / 2; x < coords.first + room_size / 2; x++) {
-                        for(int y = coords.second - room_size / 2; y < coords.second + room_size / 2; y++) {
-                            Vector2D pixel_coords = std::make_pair(Clamp(x, 1, mapsize_x - 2), Clamp(y, 1, mapsize_y - 2));
+                    for(int x = coords.x - room_size / 2; x < coords.x + room_size / 2; x++) {
+                        for(int y = coords.y - room_size / 2; y < coords.y + room_size / 2; y++) {
+                            PenkVector2 pixel_coords {Clamp(x, 1, mapsize_x - 2), Clamp(y, 1, mapsize_y - 2)};
                             rgb[layer][GetPixel(pixel_coords, mapsize_x)] = 50;
                             rgb[layer][GetPixel(pixel_coords, mapsize_x) + 1] = 50;
                             rgb[layer][GetPixel(pixel_coords, mapsize_x) + 2] = 50;
                             if(rand() % 25 < 2) {
                                 bool found = false;
                                 for(auto position : furniture_positions[layer]) {
-                                    if(position.first == pixel_coords) {
+                                    if(position.position.x == pixel_coords.x && position.position.y == pixel_coords.y) {
                                         found = true;
                                         break;
                                     }
@@ -188,7 +194,13 @@ SpaceMapType CreateSpaceMap(int mapsize_x, int mapsize_y, int up) {
 
                                 if(found) continue;
 
-                                furniture_positions[layer].push_back(std::make_pair(pixel_coords, std::make_pair(rand() % max_furniture, rand() % 360)));
+                                Furniture furniture;
+
+                                furniture.position = pixel_coords;
+                                furniture.id = rand() % max_furniture;
+                                furniture.rotation = rand() % 360;
+
+                                furniture_positions[layer].push_back(furniture);
                             }
                         }
                     }
@@ -212,15 +224,15 @@ SpaceMapType CreateSpaceMap(int mapsize_x, int mapsize_y, int up) {
     for(int layer = 0; layer < up; layer++) {
         for(int x = 0; x < mapsize_x; x++) {
             for(int y = 0; y < mapsize_y; y++) {
-                Vector2D coords = std::make_pair(x, y);
+                PenkVector2 coords {x, y};
                 int current_pixel = GetPixel(coords, mapsize_x);
                 if(rgb[layer][current_pixel] != 50) continue;
                 rgb[layer][current_pixel] = 10;
                 rgb[layer][current_pixel + 1] = 10;
                 rgb[layer][current_pixel + 2] = 10;
                 
-                for(Vector2D direction : directions) {
-                    int pixel = GetPixel(ShiftCoords(coords, direction.first, direction.second), mapsize_x);
+                for(PenkVector2 direction : directions) {
+                    int pixel = GetPixel(ShiftCoords(coords, direction.x, direction.y), mapsize_x);
                     if(rgb[layer][pixel] == 0) {
                         rgb[layer][pixel] = 255;
                         rgb[layer][pixel + 1] = 255;
@@ -236,7 +248,7 @@ SpaceMapType CreateSpaceMap(int mapsize_x, int mapsize_y, int up) {
     for(int layer = 0; layer < up; layer++) {
         for(int x = 0; x < mapsize_x; x++) {
             for(int y = 0; y < mapsize_y; y++) {
-                Vector2D coords = std::make_pair(x, y);
+                PenkVector2 coords {x, y};
                 int current_pixel = GetPixel(coords, mapsize_x);
                 if(rgb[layer][current_pixel] == 10) {
                     rgb[layer][current_pixel] = 0;
@@ -288,7 +300,11 @@ SpaceMapType CreateSpaceMap(int mapsize_x, int mapsize_y, int up) {
         srand(time(NULL));
     }
 
-    return std::make_tuple(out_positions, furniture_positions);
+    SpaceMapType output;
+    output.positions = out_positions;
+    output.furniture = furniture_positions;
+
+    return output;
 }
 
 void UpdateSpaceMap() {
@@ -314,8 +330,8 @@ std::vector<Model> LoadFurniture() {
 
 void DrawFurniture(std::vector<Model> furnitures, FurnitureType furniture_positions) {
     for(auto position : furniture_positions[current_layer]) {
-        if(position.second.first == -10000) continue;
-        DrawModelEx(furnitures[position.second.first], (Vector3){(float)position.first.second, .15f, (float)position.first.first}, (Vector3){0, 1, 0}, position.second.second, (Vector3){1.f, 1.f, 1.f}, WHITE);
+        if(position.id == -10000) continue;
+        DrawModelEx(furnitures[position.id], (Vector3){(float)position.position.y, .15f, (float)position.position.x}, (Vector3){0, 1, 0}, position.rotation, (Vector3){1.f, 1.f, 1.f}, WHITE);
     }
 }
 

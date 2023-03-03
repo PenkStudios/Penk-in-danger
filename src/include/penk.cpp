@@ -6,7 +6,24 @@
 #include <iostream>
 #include <bits/stdc++.h>
 
-const std::pair<float, float> no_position = std::make_pair(FLT_MAX, FLT_MAX);
+struct PenkVector2 {
+    int x;
+    int y;
+};
+
+struct PenkWorldVector2 {
+    float x;
+    float y;
+
+    PenkVector2 ToNormal() {
+        PenkVector2 vector;
+        vector.x = static_cast<int>(x);
+        vector.y = static_cast<int>(y);
+        return vector;
+    }
+};
+
+const PenkVector2 no_position {INT_MAX, INT_MAX};
 
 void PenkError(char* proc, const char* error) {
     if(proc[0] > 64 && proc[0] < 91) {

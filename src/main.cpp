@@ -16,6 +16,10 @@ bool debug_menu = false;
 #include "debug.cpp"
 
 #include "penkController.cpp"
+#include "path.cpp"
+
+std::vector<PenkVector2> positions;
+std::vector<std::vector<Furniture>> furniture_positions;
 
 struct stat info;
 
@@ -64,7 +68,7 @@ void SwitchToGame(Camera *camera, Controller *controller) {
     controller->camera->position = (Vector3){(float)blocks_x/2, 1.0f, (float)blocks_y/2};
     SwitchToController(controller, PENK_FIRST_PERSON);
     scene = GAME;
-    camera->position = (Vector3){(float)blocks_x/2, 1.0f, (float)blocks_y/2};
+    camera->position = (Vector3){(float)blocks_x/2, 5.0f, (float)blocks_y/2};
 }
 
 void SwitchToMenu(Camera *camera, Controller *controller) {
@@ -77,38 +81,47 @@ void SwitchToMenu(Camera *camera, Controller *controller) {
 enum HeldObject {HO_NOTHING, HO_TELEPORT};
 HeldObject held_object = HO_NOTHING;
 
-Texture2D teleport_hand;
+Model teleport;
 
-void DrawItem() {
-    Texture to_draw;
+void DrawItem(Camera3D camera) {
+    Model to_render;
     switch(held_object) {
         case HO_TELEPORT:
-            to_draw = teleport_hand;
+            to_render = teleport;
             break;
         case HO_NOTHING: return;
     }
-    DrawTextureScale(teleport_hand, (Vector2){(float)width - to_draw.width * 1.f, (float)height - to_draw.height / 1.7f}, (Vector2){1.5f, 1.2f}, WHITE);
+
+    Vector3 position = Vector3Add(Vector3Divide(Vector3Subtract(camera.target, camera.position), (Vector3){5, 5, 5}), camera.position);
+
+    int rotation = YRotateTowards(position, camera.position);
+
+    // printf("%f, %f, %f\n", rotation.x, rotation.y, rotation.z);
+
+    DrawModelEx(to_render, position, (Vector3){0.f, 1.f, 0.f}, rotation * 100, (Vector3){.1f, .1f, .1f}, WHITE);
 }
 
 int main(int argc, char** argv) {
-    GameInit();    
-
+    GameInit();
+    
     printf("[PENK] Preparing to call 'createSpaceMap'...\n");
     SpaceMapType space_data = CreateSpaceMap(blocks_x, blocks_y, layers);
-    positions = std::get<0>(space_data);
-    furniture_positions = std::get<1>(space_data);
+    positions = space_data.positions;
+    furniture_positions = space_data.furniture;
+
+    Path::EnemyPosition enemyPosition;
+    enemyPosition.worldPosition = PenkWorldVector2 {(float)positions[0].x, (float)positions[0].y};
+    enemyPosition.UpdateGridPosition();
 
     Camera camera = { { 0.0f, 0.0f, 0.0f }, { 1.0f, 0.0f, 0.0f }, { 0.0f, 1.0f, 0.0f }, 45.0f, 0 };
 
     Controller controller;
     controller.camera = &camera;
 
-    Model teleport = LoadModel("resources/teleport.obj");
+    teleport = LoadModel("resources/teleport.obj");
 
     Model redboy = LoadModel("resources/redboy.obj");
     Model house = LoadModel("resources/house.obj");
-
-    teleport_hand = LoadTexture("resources/teleport_hand.png");
 
     redboy_texture = LoadTexture("resources/redboy.png");
     redboy.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = redboy_texture;
@@ -195,22 +208,24 @@ int main(int argc, char** argv) {
                 BeginDrawing(); {
                     ClearBackground(Color{50, 100, 150, 0});
                     BeginMode3D(camera); {
+                        Path::PositionTick(&enemyPosition, 100.f);
+                        DrawModelEx(redboy, (Vector3){enemyPosition.worldPosition.x, 1.f, enemyPosition.worldPosition.y}, (Vector3){0.f, 1.f, 0.f}, enemyPosition.rotation, (Vector3){2.5f, 2.5f, 2.5f}, WHITE);
                         UpdateSpaceMap();
                         DrawFurniture(furniture, furniture_positions);
                         if(held_object == HO_TELEPORT) {
                             if(IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
                                 held_object = HO_NOTHING;
-                                positions[current_layer] = std::make_pair(camera.position.z, camera.position.x);
+                                positions[current_layer] = PenkVector2 {(int)camera.position.z, (int)camera.position.x};
                             } else if(IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
                                 held_object = HO_NOTHING;
-                                positions[current_layer] = std::make_pair(camera.position.z, camera.position.x);
-                                camera.position = (Vector3){current_teleport_position.second, 1.0f, current_teleport_position.first};
+                                positions[current_layer] = PenkVector2 {(int)camera.position.z, (int)camera.position.x};
+                                camera.position = (Vector3){(float)current_teleport_position.y, 1.0f, (float)current_teleport_position.x};
                                 current_layer++;
                                 current_teleport_position = positions[current_layer];
                             }
                         } else if(held_object == HO_NOTHING) {
-                            float y = positions[current_layer].first;
-                            float x = positions[current_layer].second;
+                            float y = positions[current_layer].x;
+                            float x = positions[current_layer].y;
 
                             bool collide = GetItemCollision((Vector3){x, 1.f, y}, 1.f, camera);
 
@@ -222,8 +237,8 @@ int main(int argc, char** argv) {
                             DrawModel(teleport, (Vector3){x, sine_between(.6f, 0.9f, GetTime()*4), y}, .15f, WHITE);
                             teleport.transform = MatrixMultiply(teleport.transform, MatrixRotateY(-1.5f * GetFrameTime()));
                         }
+                        DrawItem(camera);
                     } EndMode3D();
-                    DrawItem();
                     DebugHandleKeys();
                 } EndDrawing();
                 break;

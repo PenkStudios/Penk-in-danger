@@ -38,6 +38,14 @@ void DrawTextureScale(Texture2D texture, Vector2 position, Vector2 scale, Color 
     );
 }
 
+int YRotateTowards(Vector3 position, Vector3 targetPosition)
+{
+    Vector3 diff = Vector3Subtract(position, targetPosition);
+    float y_angle = atan2(diff.x, diff.z);
+
+    return y_angle;
+}
+
 void DrawButton(Button *button, Vector2 position, Vector2 scale, const char* text, Color text_color, int font_scale = 4, bool update = true) {
     button->pressed = false;
 
