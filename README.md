@@ -1,4 +1,4 @@
-# Penk in danger 0.1 (pre-release)
+# Penk in danger 0.12 (pre-release)
 Silly game about boy chasing you in retirement home
 
 ## Download (Windows and Linux)

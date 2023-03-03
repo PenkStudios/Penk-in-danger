@@ -68,7 +68,7 @@ void SwitchToGame(Camera *camera, Controller *controller) {
     controller->camera->position = (Vector3){(float)blocks_x/2, 1.0f, (float)blocks_y/2};
     SwitchToController(controller, PENK_FIRST_PERSON);
     scene = GAME;
-    camera->position = (Vector3){(float)blocks_x/2, 5.0f, (float)blocks_y/2};
+    camera->position = (Vector3){(float)blocks_x/2, 1.0f, (float)blocks_y/2};
 }
 
 void SwitchToMenu(Camera *camera, Controller *controller) {
@@ -209,7 +209,7 @@ int main(int argc, char** argv) {
                     ClearBackground(Color{50, 100, 150, 0});
                     BeginMode3D(camera); {
                         Path::PositionTick(&enemyPosition, 100.f);
-                        DrawModelEx(redboy, (Vector3){enemyPosition.worldPosition.x, 1.f, enemyPosition.worldPosition.y}, (Vector3){0.f, 1.f, 0.f}, enemyPosition.rotation, (Vector3){2.5f, 2.5f, 2.5f}, WHITE);
+                        DrawModelEx(redboy, (Vector3){enemyPosition.worldPosition.x, 1.f, enemyPosition.worldPosition.y}, (Vector3){0.f, 1.f, 0.f}, enemyPosition.rotation, (Vector3){0.5f, 0.5f, 0.5f}, WHITE);
                         UpdateSpaceMap();
                         DrawFurniture(furniture, furniture_positions);
                         if(held_object == HO_TELEPORT) {
