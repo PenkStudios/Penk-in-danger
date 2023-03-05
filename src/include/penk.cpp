@@ -25,11 +25,11 @@ struct PenkWorldVector2 {
 
 const PenkVector2 no_position {INT_MAX, INT_MAX};
 
-void PenkError(char* proc, const char* error) {
+void PenkError(char proc[], const char* error) {
     if(proc[0] > 64 && proc[0] < 91) {
         proc[0] -= 32;
     }
-    printf("[ERROR] %s failed : %s", proc, error);
+    printf("[ERROR] %s failed : %s\n", proc, error);
     exit(1);
 }
 

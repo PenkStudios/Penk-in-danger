@@ -64,11 +64,14 @@ Texture redboy_texture;
 enum Scene {MENU, GAME};
 Scene scene = MENU;
 
+Path::EnemyPosition enemyPosition;
+
 void SwitchToGame(Camera *camera, Controller *controller) {
-    controller->camera->position = (Vector3){(float)blocks_x/2, 1.0f, (float)blocks_y/2};
+    controller->camera->position = (Vector3){(float)map_size/2, 1.0f, (float)map_size/2};
     SwitchToController(controller, PENK_FIRST_PERSON);
     scene = GAME;
-    camera->position = (Vector3){(float)blocks_x/2, 1.0f, (float)blocks_y/2};
+    camera->position = (Vector3){(float)map_size/2, 1.0f, (float)map_size/2};
+    enemyPosition.position = PenkWorldVector2 {(float)positions[current_layer].y, (float)positions[current_layer].x};
 }
 
 void SwitchToMenu(Camera *camera, Controller *controller) {
@@ -76,6 +79,15 @@ void SwitchToMenu(Camera *camera, Controller *controller) {
     camera->position = (Vector3){-0.3f, 2.0f, 0.0f};
     camera->target = (Vector3){0.0f, 0.0f, 0.0f};
     SwitchToController(controller, PENK_ORBITAL);
+}
+
+Path::PathMap pathMap;
+
+void NextLayer(Camera *camera) {
+    positions[current_layer] = PenkVector2 {(int)camera->position.z, (int)camera->position.x};
+    pathMap = Path::PathMap{};
+    current_layer++;
+    enemyPosition.position = PenkWorldVector2 {(float)positions[current_layer].y, (float)positions[current_layer].x};
 }
 
 enum HeldObject {HO_NOTHING, HO_TELEPORT};
@@ -105,13 +117,9 @@ int main(int argc, char** argv) {
     GameInit();
     
     printf("[PENK] Preparing to call 'createSpaceMap'...\n");
-    SpaceMapType space_data = CreateSpaceMap(blocks_x, blocks_y, layers);
+    SpaceMapType space_data = CreateSpaceMap(map_size, layers);
     positions = space_data.positions;
     furniture_positions = space_data.furniture;
-
-    Path::EnemyPosition enemyPosition;
-    enemyPosition.worldPosition = PenkWorldVector2 {(float)positions[0].x, (float)positions[0].y};
-    enemyPosition.UpdateGridPosition();
 
     Camera camera = { { 0.0f, 0.0f, 0.0f }, { 1.0f, 0.0f, 0.0f }, { 0.0f, 1.0f, 0.0f }, 45.0f, 0 };
 
@@ -208,8 +216,8 @@ int main(int argc, char** argv) {
                 BeginDrawing(); {
                     ClearBackground(Color{50, 100, 150, 0});
                     BeginMode3D(camera); {
-                        Path::PositionTick(&enemyPosition, 100.f);
-                        DrawModelEx(redboy, (Vector3){enemyPosition.worldPosition.x, 1.f, enemyPosition.worldPosition.y}, (Vector3){0.f, 1.f, 0.f}, enemyPosition.rotation, (Vector3){0.5f, 0.5f, 0.5f}, WHITE);
+                        enemyPosition.Tick(map_pixels_vector[current_layer], map_size, &pathMap, 10);
+                        DrawModelEx(redboy, (Vector3){enemyPosition.position.x, sine_between(.8f, 1.f, GetTime() * 10), enemyPosition.position.y}, (Vector3){0.f, 1.f, 0.f}, enemyPosition.GetAngle(), (Vector3){0.4f, 0.4f, 0.4f}, WHITE);
                         UpdateSpaceMap();
                         DrawFurniture(furniture, furniture_positions);
                         if(held_object == HO_TELEPORT) {
@@ -218,9 +226,7 @@ int main(int argc, char** argv) {
                                 positions[current_layer] = PenkVector2 {(int)camera.position.z, (int)camera.position.x};
                             } else if(IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
                                 held_object = HO_NOTHING;
-                                positions[current_layer] = PenkVector2 {(int)camera.position.z, (int)camera.position.x};
-                                camera.position = (Vector3){(float)current_teleport_position.y, 1.0f, (float)current_teleport_position.x};
-                                current_layer++;
+                                NextLayer(&camera);
                                 current_teleport_position = positions[current_layer];
                             }
                         } else if(held_object == HO_NOTHING) {
@@ -239,6 +245,23 @@ int main(int argc, char** argv) {
                         }
                         DrawItem(camera);
                     } EndMode3D();
+
+                    if(debug_menu) {
+                        DrawTextureEx(cubicmap_textures[current_layer], (Vector2){ GetScreenWidth() - cubicmap_textures[current_layer].width*4.0f - 20, 20.0f }, 0.0f, 4.0f, WHITE);
+                        DrawRectangleLines(GetScreenWidth() - cubicmap_textures[current_layer].width*4 - 20, 20, cubicmap_textures[current_layer].width*4, cubicmap_textures[current_layer].height*4, GREEN);
+
+                        for(int x = 0; x < map_size; x++) {
+                            for(int y = 0; y < map_size; y++) {
+                                if(map_pixels_vector[current_layer][y * map_size + x].r != 255) {
+                                    DrawRectangle(GetScreenWidth() - cubicmap_textures[current_layer].width*4 - 20 + x * 4, 20 + y * 4, 4, 4, Color{(unsigned char)(pathMap.map[y][x] / 50), (unsigned char)(pathMap.map[y][x] / 50), 0, 255});
+                                }
+                            }
+                        }
+
+                        DrawRectangle(GetScreenWidth() - cubicmap_textures[current_layer].width*4 - 20 + enemyPosition.position.x*4, 20 + enemyPosition.position.y*4, 4, 4, RED);
+                        DrawRectangle(GetScreenWidth() - cubicmap_textures[current_layer].width*4 - 20 + camera.position.x*4, 20 + camera.position.z*4, 4, 4, GREEN);
+                    }
+
                     DebugHandleKeys();
                 } EndDrawing();
                 break;

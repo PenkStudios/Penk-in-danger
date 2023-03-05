@@ -9,7 +9,7 @@ linux:
 	rm -rf ./build/resources
 	cp -r ./resources ./build
 	cp ./lib/libenet.so.7 ./build/libenet.so.7
-	g++ src/main.cpp $(include) $(ldFlags) $(debug) $(optimisation) -o build/PenkInDanger
+	g++ src/main.cpp $(include) $(ldFlags) $(debug) $(optimisation) -Wno-write-strings -o build/PenkInDanger
 
 run:
 	cd build && ./PenkInDanger
@@ -18,7 +18,7 @@ win:
 	make fixobj
 	rm -rf ./build/resources
 	cp -r ./resources ./build
-	x86_64-w64-mingw32-g++ src/main.cpp -mwindows -static $(include) $(ldWinFlags) $(debug) $(optimisation) -o build/PenkInDanger.exe
+	x86_64-w64-mingw32-g++ src/main.cpp -mwindows -static $(include) $(ldWinFlags) $(debug) $(optimisation) -Wno-write-strings -o build/PenkInDanger.exe
 
 fixobj:
 	python fixobj.py

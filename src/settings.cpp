@@ -10,9 +10,8 @@ const char* window_title = "Penk in danger";
 
 int fps = 60;
 
-int blocks_x = 26;
-int blocks_y = 26;
-int layers = 1;
+int map_size = 50;
+int layers = 2;
 int seed = 0; /* random */
 
 int max_furniture = 4;

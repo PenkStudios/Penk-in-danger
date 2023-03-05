@@ -30,13 +30,13 @@ struct Furniture {
     float rotation;
 };
 
-int GetPixel(PenkVector2 coords, int width) {
-    return (coords.x * width + coords.y) * 3;
+int GetPixel(PenkVector2 coords, int map_size) {
+    return (coords.x * map_size + coords.y) * 3;
 }
 
-bool InBorder(PenkVector2 coords, int width, int height) {
+bool InBorder(PenkVector2 coords, int map_size) {
     return (coords.x < 1 || coords.y < 1) ||
-        (coords.x > width - 2 || coords.y > height - 2);
+        (coords.x > map_size - 2 || coords.y > map_size - 2);
 }
 
 PenkVector2 directions[] = {{0, -1}, {1, 0}, {0, 1}, {-1, 0}}; // B(ack) R(ight) U(p) L(eft)
@@ -93,7 +93,7 @@ PenkVector2 ShiftDirection(PenkVector2 direction) {
 }
 
 int NearCorner(PenkVector2 coords) {
-    return (DIFF(coords.x, blocks_x) * DIFF(coords.y, blocks_y)) + 1;
+    return (DIFF(coords.x, map_size) * DIFF(coords.y, map_size)) + 1;
 }
 
 PenkVector2 current_teleport_position;
@@ -110,39 +110,39 @@ struct SpaceMapType {
 using FurnitureType = std::vector<std::vector<Furniture>>;
 using PositionsType = std::vector<PenkVector2>;
 
-SpaceMapType CreateSpaceMap(int mapsize_x, int mapsize_y, int up) {
+SpaceMapType CreateSpaceMap(int map_size, int up) {
     printf("[PENK.SMAP] Images (layers) to write: %i\n", up);
-    printf("[PENK.SMAP] Map size: %i, %i\n", mapsize_x, mapsize_y);
+    printf("[PENK.SMAP] Map size: %ix%i\n", map_size, map_size);
 
     PositionsType out_positions;
     FurnitureType furniture_positions;
 
     int output_seed;
 
-    uint8_t rgb[up][mapsize_x * mapsize_y * 3];
+    uint8_t rgb[up][map_size * map_size * 3];
     
     printf("[PENK.SMAP] Allocated %i bytes for all layers (%i layer/s)\n", 
-                (int)((mapsize_x * mapsize_y * 3 * up) * sizeof(unsigned char)), up);
+                (int)((map_size * map_size * 3 * up) * sizeof(unsigned char)), up);
 
     for(int y = 0; y < up; y++) {
-            for(int p = 0; p < mapsize_x * mapsize_y * 3; p++) {
+            for(int p = 0; p < map_size * map_size * 3; p++) {
                 rgb[y][p] = 0;
             }
     }
 
-    PenkVector2 coords {mapsize_x / 2, mapsize_y / 2};
+    PenkVector2 coords {map_size / 2, map_size / 2};
 
     printf("    Generation step 1 : \"Map creating base algorithm\" ");
 
     PenkVector2 direction = NewDirection(no_direction);
 
     for(int layer = 0; layer < up; layer++) {
-        int start_point = GetPixel(coords, mapsize_x);
+        int start_point = GetPixel(coords, map_size);
         rgb[layer][start_point] = 50;
         rgb[layer][start_point + 1] = 50;
         rgb[layer][start_point + 2] = 50;
 
-        int maximum = (rand() % (mapsize_x * mapsize_y / 2)) + (mapsize_x * mapsize_y / 2);
+        int maximum = (rand() % (map_size * map_size / 2)) + (map_size * map_size / 2);
         int step = 5;
         int room_step = 15;
 
@@ -157,20 +157,18 @@ SpaceMapType CreateSpaceMap(int mapsize_x, int mapsize_y, int up) {
 
             if(i >= maximum - 1) {
                 out_positions.push_back(coords);
-                rgb[layer][GetPixel(coords, mapsize_x)] = 50;
-                rgb[layer][GetPixel(coords, mapsize_x) + 1] = 50;
-                rgb[layer][GetPixel(coords, mapsize_x) + 2] = 50;
+                rgb[layer][GetPixel(coords, map_size)] = 50;
+                rgb[layer][GetPixel(coords, map_size) + 1] = 50;
+                rgb[layer][GetPixel(coords, map_size) + 2] = 50;
                 continue;
             }
 
-            if(InBorder(coords, mapsize_x, mapsize_y)) {
-                printf("In border: %i, %i\n", coords.x, coords.y);
+            if(InBorder(coords, map_size)) {
                 coords.x -= direction.x;
                 coords.y -= direction.y;
                 direction = ReverseDirection(direction);
                 continue;
             } else {
-                printf("Not in border\n");
                 if(!(rand() % NearCorner(coords))) {
                     direction = ShiftDirection(direction);
                 }
@@ -179,10 +177,10 @@ SpaceMapType CreateSpaceMap(int mapsize_x, int mapsize_y, int up) {
                     int room_size = 2 + rand() % 4;
                     for(int x = coords.x - room_size / 2; x < coords.x + room_size / 2; x++) {
                         for(int y = coords.y - room_size / 2; y < coords.y + room_size / 2; y++) {
-                            PenkVector2 pixel_coords {Clamp(x, 1, mapsize_x - 2), Clamp(y, 1, mapsize_y - 2)};
-                            rgb[layer][GetPixel(pixel_coords, mapsize_x)] = 50;
-                            rgb[layer][GetPixel(pixel_coords, mapsize_x) + 1] = 50;
-                            rgb[layer][GetPixel(pixel_coords, mapsize_x) + 2] = 50;
+                            PenkVector2 pixel_coords {Clamp(x, 1, map_size - 2), Clamp(y, 1, map_size - 2)};
+                            rgb[layer][GetPixel(pixel_coords, map_size)] = 50;
+                            rgb[layer][GetPixel(pixel_coords, map_size) + 1] = 50;
+                            rgb[layer][GetPixel(pixel_coords, map_size) + 2] = 50;
                             if(rand() % 25 < 2) {
                                 bool found = false;
                                 for(auto position : furniture_positions[layer]) {
@@ -206,9 +204,9 @@ SpaceMapType CreateSpaceMap(int mapsize_x, int mapsize_y, int up) {
                     }
                     room_step = 20 + rand() % 25;
                 } else {
-                    rgb[layer][GetPixel(coords, mapsize_x)] = 50;
-                    rgb[layer][GetPixel(coords, mapsize_x) + 1] = 50;
-                    rgb[layer][GetPixel(coords, mapsize_x) + 2] = 50;
+                    rgb[layer][GetPixel(coords, map_size)] = 50;
+                    rgb[layer][GetPixel(coords, map_size) + 1] = 50;
+                    rgb[layer][GetPixel(coords, map_size) + 2] = 50;
                 }
 
                 if(step <= 0) {
@@ -222,17 +220,17 @@ SpaceMapType CreateSpaceMap(int mapsize_x, int mapsize_y, int up) {
     printf("    Generation step 2 : \"Pathing\"\n");
 
     for(int layer = 0; layer < up; layer++) {
-        for(int x = 0; x < mapsize_x; x++) {
-            for(int y = 0; y < mapsize_y; y++) {
+        for(int x = 0; x < map_size; x++) {
+            for(int y = 0; y < map_size; y++) {
                 PenkVector2 coords {x, y};
-                int current_pixel = GetPixel(coords, mapsize_x);
+                int current_pixel = GetPixel(coords, map_size);
                 if(rgb[layer][current_pixel] != 50) continue;
                 rgb[layer][current_pixel] = 10;
                 rgb[layer][current_pixel + 1] = 10;
                 rgb[layer][current_pixel + 2] = 10;
                 
                 for(PenkVector2 direction : directions) {
-                    int pixel = GetPixel(ShiftCoords(coords, direction.x, direction.y), mapsize_x);
+                    int pixel = GetPixel(ShiftCoords(coords, direction.x, direction.y), map_size);
                     if(rgb[layer][pixel] == 0) {
                         rgb[layer][pixel] = 255;
                         rgb[layer][pixel + 1] = 255;
@@ -246,14 +244,20 @@ SpaceMapType CreateSpaceMap(int mapsize_x, int mapsize_y, int up) {
     printf("    Generation step 3 : \"Cleaning\"\n");
 
     for(int layer = 0; layer < up; layer++) {
-        for(int x = 0; x < mapsize_x; x++) {
-            for(int y = 0; y < mapsize_y; y++) {
+        for(int x = 0; x < map_size; x++) {
+            for(int y = 0; y < map_size; y++) {
                 PenkVector2 coords {x, y};
-                int current_pixel = GetPixel(coords, mapsize_x);
-                if(rgb[layer][current_pixel] == 10) {
-                    rgb[layer][current_pixel] = 0;
-                    rgb[layer][current_pixel + 1] = 0;
-                    rgb[layer][current_pixel + 2] = 0;
+                int current_pixel = GetPixel(coords, map_size);
+                if((coords.x <= 0 || coords.x >= map_size - 1) || (coords.y <= 0 || coords.y >= map_size - 1)) {
+                    rgb[layer][current_pixel] = 255;
+                    rgb[layer][current_pixel + 1] = 255;
+                    rgb[layer][current_pixel + 2] = 255;
+                } else {
+                    if(rgb[layer][current_pixel] == 10) {
+                        rgb[layer][current_pixel] = 0;
+                        rgb[layer][current_pixel + 1] = 0;
+                        rgb[layer][current_pixel + 2] = 0;
+                    }
                 }
             }
         }
@@ -268,8 +272,8 @@ SpaceMapType CreateSpaceMap(int mapsize_x, int mapsize_y, int up) {
         printf("[PENK.SMAP] Writing image file '%s'...\n", filename.c_str());
 
         std::ofstream file(filename.c_str(), std::ios::binary);
-        TinyPngOut pngout(static_cast<std::uint32_t>(mapsize_x), static_cast<std::uint32_t>(mapsize_y), file);
-		pngout.write(rgb[i], static_cast<size_t>(mapsize_x * mapsize_y));
+        TinyPngOut pngout(static_cast<std::uint32_t>(map_size), static_cast<std::uint32_t>(map_size), file);
+		pngout.write(rgb[i], static_cast<size_t>(map_size * map_size));
         file.close();
 
         printf("[PENK.SMAP] Loading map number %i %s\n", i, i == 0 ? " (current)" : "");
