@@ -19,8 +19,15 @@ namespace Path {
 		int rotationCountdown = 0;
 		int maxRotationCountdown = 100;
 
+		float rotation = 0;
+
 		int positionTick = 0;
 		int maxPositionTick = 0;
+
+		int rotationSteps = 2;
+
+		float toRotate = 0;
+		bool rotating = false;
 
 		PenkWorldVector2 PositionTickByDirection(int _direction, float amount) {
 			PenkWorldVector2 vector {0.f, 0.f};
@@ -33,7 +40,7 @@ namespace Path {
 			} else if(_direction == DIRECTION_RIGHT) {
 				vector.x = -amount;
 			} else {
-				PenkError("checking", TextFormat("invalid direction %i", direction));
+				PenkError("checking", TextFormat("invalid direction %i", _direction));
 			}
 			return vector;
 		}
@@ -42,17 +49,17 @@ namespace Path {
 			return PositionTickByDirection(direction, amount);
 		}
 
-		int GetAngle() {
-			if(direction == DIRECTION_FORWARD) {
+		int GetAngle(int _direction) {
+			if(_direction == DIRECTION_FORWARD) {
 				return 0;
-			} else if(direction == DIRECTION_BACKWARD) {
+			} else if(_direction == DIRECTION_BACKWARD) {
 				return 180;
-			} else if(direction == DIRECTION_LEFT) {
+			} else if(_direction == DIRECTION_LEFT) {
 				return 90;
-			} else if(direction == DIRECTION_RIGHT) {
+			} else if(_direction == DIRECTION_RIGHT) {
 				return 270;
 			} else {
-				PenkError("checking", TextFormat("invalid direction %i", direction));
+				PenkError("checking", TextFormat("invalid direction %i", _direction));
 			}
 			return 0;
 		}
@@ -91,30 +98,36 @@ namespace Path {
 			return free;
 		}
 
-		float GetAvgByDirection(PathMap* pathMap, int size, int _direction, int steps) {
+		float GetAvgByDirection(Color* grid, PathMap* pathMap, int size, int _direction, int steps) {
 			PenkVector2 tick = PositionTickByDirection(_direction, 1.f).ToNormal();
 			PenkVector2 currentPosition = position.ToNormal();
 			float sum = 0;
+			bool wall = false;
 			for(int i = 0; i < steps; i++) {
 				currentPosition.x += tick.x;
 				currentPosition.y += tick.y;
 				if(currentPosition.x > size - 1 || currentPosition.y > size - 1 || currentPosition.x < 0 || currentPosition.y < 0) {
-					return sum / (i + 1);
+					return sum + 10000 / (i + 2);
 					break;
 				}
-				sum += pathMap->map[currentPosition.y][currentPosition.x];
+				if(grid[currentPosition.y * size + currentPosition.x].r == 255) {
+					sum += 10;
+					wall = true;
+				} else {
+					sum += wall ? 10 : pathMap->map[currentPosition.y][currentPosition.x];
+				}
 			}
 			return sum / steps;
 		}
 
-		int RandomDirection(PathMap *pathMap, int size, int cellAvg) {
+		int RandomDirection(Color* grid, PathMap *pathMap, int size, int cellAvg) {
 			float minimum = 100000.f;
 			int minimum_direction = rand() % 4;
 
 			int newDirection = direction;
 			for(int i = 0; i < 3; i++) {
 				newDirection = (newDirection + 1) % 4;
-				int avg = GetAvgByDirection(pathMap, size, newDirection, 2);
+				int avg = GetAvgByDirection(grid, pathMap, size, newDirection, 15);
 				if(avg < minimum) {
 					minimum = avg;
 					minimum_direction = newDirection;
@@ -124,7 +137,23 @@ namespace Path {
 
 		}
 
-		void Tick(Color* grid, int size, PathMap* pathMap, int slowness) {
+		void RotateTowardsDirection(int _direction) {
+			toRotate = GetAngle(_direction);
+			rotating = true;
+			direction = _direction;
+		}
+
+		void Tick(Color* grid, int size, PathMap* pathMap, PenkWorldVector2 playerPosition, int slowness) {
+			if(rotating) {
+				if((int)rotation != (int)toRotate) {
+					rotation += (toRotate - rotation) / rotationSteps;
+					printf("Rotate by: %f\n", (toRotate - rotation) / rotationSteps);
+				} else {
+					rotating = false;
+				}
+				return;
+			}
+
 			PenkWorldVector2 oldPosition = position;
 			maxPositionTick = slowness * 5;
 
@@ -139,7 +168,7 @@ namespace Path {
 				for(int x = 0; x < size; x++) {
 					if(empty) {
 						if(grid[y * size + x].r == 255) {
-							pathMap->map[pathMap->map.size() - 1].push_back(100);
+							pathMap->map[pathMap->map.size() - 1].push_back(1000);
 						} else {
 							pathMap->map[pathMap->map.size() - 1].push_back(0);
 						}
@@ -155,19 +184,28 @@ namespace Path {
 			if(positionTick < 0) {
 				positionTick = maxPositionTick / 2 + rand() % (maxPositionTick / 2);
 				pathMap->map[position.y][position.x] += 1000;
+				pathMap->map[playerPosition.ToNormal().y][playerPosition.ToNormal().x] -= 1000;
+
+				for(int x = 0; x < size; x++) {
+					for(int y = 0; y < size; y++) {
+						if(pathMap->map[y][x] > 0) {
+							pathMap->map[y][x] -= 10;
+						}
+					}
+				}
 			}
 
 			position.x += PositionTick(1.f / slowness).x;
 			position.y += PositionTick(1.f / slowness).y;
 
 			if(Collide(grid, size)) {
-				direction = RandomDirection(pathMap, size, avg);
+				RotateTowardsDirection(RandomDirection(grid, pathMap, size, avg));
 				position = oldPosition;
 				return;
 			} else {
 				rotationCountdown--;
 				if(rotationCountdown < 0 && FreeSpace(grid, size) >= 3) {
-					direction = RandomDirection(pathMap, size, avg);
+					RotateTowardsDirection(RandomDirection(grid, pathMap, size, avg));
 					rotationCountdown = maxRotationCountdown;
 				}
 			}

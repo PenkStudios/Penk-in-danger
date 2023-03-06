@@ -216,8 +216,8 @@ int main(int argc, char** argv) {
                 BeginDrawing(); {
                     ClearBackground(Color{50, 100, 150, 0});
                     BeginMode3D(camera); {
-                        enemyPosition.Tick(map_pixels_vector[current_layer], map_size, &pathMap, 10);
-                        DrawModelEx(redboy, (Vector3){enemyPosition.position.x, sine_between(.8f, 1.f, GetTime() * 10), enemyPosition.position.y}, (Vector3){0.f, 1.f, 0.f}, enemyPosition.GetAngle(), (Vector3){0.4f, 0.4f, 0.4f}, WHITE);
+                        enemyPosition.Tick(map_pixels_vector[current_layer], map_size, &pathMap, PenkWorldVector2 {camera.position.x, camera.position.z}, 10);
+                        DrawModelEx(redboy, (Vector3){enemyPosition.position.x, sine_between(.8f, 1.f, GetTime() * 10), enemyPosition.position.y}, (Vector3){0.f, 1.f, 0.f}, (float)enemyPosition.rotation, (Vector3){0.4f, 0.4f, 0.4f}, WHITE);
                         UpdateSpaceMap();
                         DrawFurniture(furniture, furniture_positions);
                         if(held_object == HO_TELEPORT) {
