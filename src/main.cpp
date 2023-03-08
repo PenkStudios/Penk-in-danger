@@ -226,18 +226,22 @@ int main(int argc, char** argv) {
                         DrawFurniture(furniture, furniture_positions);
                         if(held_object == HO_TELEPORT) {
                             if(IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+                                bool collide = false;
                                 Vector3 lookAt = CalculateLookAtTarget(camera);
                                 for (int y = 0; y < cubicmap_textures[current_layer].height; y++) {
                                     for (int x = 0; x < cubicmap_textures[current_layer].width; x++) {
                                         if ((map_pixels_vector[current_layer][y*cubicmap_textures[current_layer].width + x].r == 255) &&       // Collision: white pixel, only check R channel
-                                            (CheckCollisionCircleRec(Vector2 {lookAt.z, lookAt.x}, 0.5f,
+                                            (CheckCollisionCircleRec(Vector2 {lookAt.x, lookAt.z}, 0.2f,
                                             (Rectangle){ 0 - 0.5f + x*1.0f, 0 - 0.5f + y*1.0f, 1.0f, 1.0f }))) {
                                             // TODO: Action
-                                        } else {
-                                            held_object = HO_NOTHING;
-                                            positions[current_layer] = PenkWorldVector2 {lookAt.z, lookAt.x};
+                                            collide = true;
                                         }
                                     }
+                                }
+
+                                if(!collide) {
+                                    held_object = HO_NOTHING;
+                                    positions[current_layer] = PenkWorldVector2 {lookAt.z, lookAt.x};
                                 }
                             } else if(IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
                                 held_object = HO_NOTHING;
@@ -276,6 +280,10 @@ int main(int argc, char** argv) {
                                 }
                             }
                         }
+
+                        Vector3 lookAtTarget = CalculateLookAtTarget(camera);
+
+                        DrawRectangle(GetScreenWidth() - cubicmap_textures[current_layer].width*4 - 20 + lookAtTarget.x*4, 20 + lookAtTarget.z*4, 3, 3, Color {255, 140, 0, 255});
 
                         DrawRectangle(GetScreenWidth() - cubicmap_textures[current_layer].width*4 - 20 + enemyPosition.position.x*4, 20 + enemyPosition.position.y*4, 4, 4, RED);
                         DrawRectangle(GetScreenWidth() - cubicmap_textures[current_layer].width*4 - 20 + camera.position.x*4, 20 + camera.position.z*4, 4, 4, GREEN);

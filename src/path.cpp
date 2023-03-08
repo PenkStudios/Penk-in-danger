@@ -35,6 +35,7 @@ namespace Path {
 		PenkWorldVector2 originalPosition;
 		int slideCooldown = 0;
 		int maxSlideCooldown = 0;
+		int slidingSlowness = 0;
 
 		PenkWorldVector2 PositionTickByDirection(int _direction, float amount) {
 			PenkWorldVector2 vector {0.f, 0.f};
@@ -156,12 +157,12 @@ namespace Path {
 
 		bool RayCast(Color* grid, int size, PenkWorldVector2 _position, PenkWorldVector2 targetPosition) {
 			PenkWorldVector2 stepPosition;
-			stepPosition.x = (targetPosition.x - _position.x) / 45;
-			stepPosition.y = (targetPosition.y - _position.y) / 45;
+			stepPosition.x = (targetPosition.x - _position.x) / 60;
+			stepPosition.y = (targetPosition.y - _position.y) / 60;
 
 			PenkWorldVector2 currentPosition = _position;
 
-			for(int i = 0; i < 45; i++) {
+			for(int i = 0; i < 60; i++) {
 				currentPosition.x += stepPosition.x;
 				currentPosition.y += stepPosition.y;
 
@@ -183,7 +184,7 @@ namespace Path {
 			if(sliding) {
 				if(slideCooldown < maxSlideCooldown) {
 					slideCooldown++;
-					PenkWorldVector2 addVector{(slideTo.ToNormal().x - originalPosition.x) / (slowness * 5) * slideCooldown, (slideTo.ToNormal().y - originalPosition.y) / (slowness * 5) * slideCooldown};
+					PenkWorldVector2 addVector{(slideTo.ToNormal().x - originalPosition.x) / (slowness * slidingSlowness) * slideCooldown, (slideTo.ToNormal().y - originalPosition.y) / (slowness * slidingSlowness) * slideCooldown};
 
 					position.x = originalPosition.x + addVector.x;
 					position.y = originalPosition.y + addVector.y;
@@ -202,7 +203,8 @@ namespace Path {
 				if(!hit) {
 					sliding = true;
 					slideTo = playerPosition;
-					maxSlideCooldown = slowness * 5;
+					slidingSlowness = DIFF(playerPosition.x, position.x) + DIFF(playerPosition.y, position.y);
+					maxSlideCooldown = slowness * slidingSlowness;
 					slideCooldown = 0;
 					originalPosition = position;
 				}
