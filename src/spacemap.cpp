@@ -96,19 +96,19 @@ int NearCorner(PenkVector2 coords) {
     return (DIFF(coords.x, map_size) * DIFF(coords.y, map_size)) + 1;
 }
 
-PenkVector2 current_teleport_position;
+PenkWorldVector2 current_teleport_position;
 
 PenkVector2 ShiftCoords(PenkVector2 coords, int x, int y) {
     return PenkVector2{coords.x + x, coords.y + y};
 }
 
 struct SpaceMapType {
-    std::vector<PenkVector2> positions;
+    std::vector<PenkWorldVector2> positions;
     std::vector<std::vector<Furniture>> furniture;
 };
 
 using FurnitureType = std::vector<std::vector<Furniture>>;
-using PositionsType = std::vector<PenkVector2>;
+using PositionsType = std::vector<PenkWorldVector2>;
 
 SpaceMapType CreateSpaceMap(int map_size, int up) {
     printf("[PENK.SMAP] Images (layers) to write: %i\n", up);
@@ -156,7 +156,7 @@ SpaceMapType CreateSpaceMap(int map_size, int up) {
             coords.y += direction.y;
 
             if(i >= maximum - 1) {
-                out_positions.push_back(coords);
+                out_positions.push_back(PenkWorldVector2{(float)coords.x, (float)coords.y});
                 rgb[layer][GetPixel(coords, map_size)] = 50;
                 rgb[layer][GetPixel(coords, map_size) + 1] = 50;
                 rgb[layer][GetPixel(coords, map_size) + 2] = 50;

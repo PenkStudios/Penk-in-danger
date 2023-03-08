@@ -7,6 +7,7 @@
 #include <vector>
 #include <stdio.h>
 #include <cstring>
+#include "penk.cpp"
 
 Font base_font;
 
@@ -38,10 +39,10 @@ void DrawTextureScale(Texture2D texture, Vector2 position, Vector2 scale, Color 
     );
 }
 
-int YRotateTowards(Vector3 position, Vector3 targetPosition)
+float YRotateTowards(PenkWorldVector2 position, PenkWorldVector2 targetPosition)
 {
-    Vector3 diff = Vector3Subtract(position, targetPosition);
-    float y_angle = atan2(diff.x, diff.z);
+    PenkWorldVector2 diff = {targetPosition.x - position.x, targetPosition.y - position.y};
+    float y_angle = atan2(diff.x, diff.y);
 
     return y_angle;
 }

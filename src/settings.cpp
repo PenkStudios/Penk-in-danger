@@ -1,8 +1,6 @@
 #ifndef PENK_DEF_CPP
 #define PENK_DEF_CPP
 
-#include <vector>
-
 int height = 600;
 int width = 1000;
 

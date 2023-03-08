@@ -18,8 +18,8 @@ bool debug_menu = false;
 #include "penkController.cpp"
 #include "path.cpp"
 
-std::vector<PenkVector2> positions;
-std::vector<std::vector<Furniture>> furniture_positions;
+PositionsType positions;
+FurnitureType furniture_positions;
 
 struct stat info;
 
@@ -84,16 +84,22 @@ void SwitchToMenu(Camera *camera, Controller *controller) {
 Path::PathMap pathMap;
 
 void NextLayer(Camera *camera) {
-    positions[current_layer] = PenkVector2 {(int)camera->position.z, (int)camera->position.x};
+    positions[current_layer] = PenkWorldVector2 {(float)((int)camera->position.z), (float)((int)camera->position.x)};
     pathMap = Path::PathMap{};
     current_layer++;
     enemyPosition.position = PenkWorldVector2 {(float)positions[current_layer].y, (float)positions[current_layer].x};
+}
+
+Vector3 CalculateLookAtTarget(Camera camera) {
+    return Vector3Add(Vector3Divide(Vector3Subtract(camera.target, camera.position), (Vector3){8.f, 8.f, 8.f}), camera.position);
 }
 
 enum HeldObject {HO_NOTHING, HO_TELEPORT};
 HeldObject held_object = HO_NOTHING;
 
 Model teleport;
+
+Controller controller;
 
 void DrawItem(Camera3D camera) {
     Model to_render;
@@ -104,13 +110,13 @@ void DrawItem(Camera3D camera) {
         case HO_NOTHING: return;
     }
 
-    Vector3 position = Vector3Add(Vector3Divide(Vector3Subtract(camera.target, camera.position), (Vector3){5, 5, 5}), camera.position);
+    Vector3 position = CalculateLookAtTarget(camera);
 
-    int rotation = YRotateTowards(position, camera.position);
+    float rotation = YRotateTowards(PenkWorldVector2{camera.target.x, camera.target.z}, PenkWorldVector2{camera.position.x, camera.position.z}) * RAD2DEG;
 
-    // printf("%f, %f, %f\n", rotation.x, rotation.y, rotation.z);
+    teleport.transform = MatrixIdentity();
 
-    DrawModelEx(to_render, position, (Vector3){0.f, 1.f, 0.f}, rotation * 100, (Vector3){.1f, .1f, .1f}, WHITE);
+    DrawModelEx(to_render, position, (Vector3){0.f, 1.f, 0.f}, rotation, (Vector3){.1f, .1f, .1f}, WHITE);
 }
 
 int main(int argc, char** argv) {
@@ -122,8 +128,6 @@ int main(int argc, char** argv) {
     furniture_positions = space_data.furniture;
 
     Camera camera = { { 0.0f, 0.0f, 0.0f }, { 1.0f, 0.0f, 0.0f }, { 0.0f, 1.0f, 0.0f }, 45.0f, 0 };
-
-    Controller controller;
     controller.camera = &camera;
 
     teleport = LoadModel("resources/teleport.obj");
@@ -222,8 +226,19 @@ int main(int argc, char** argv) {
                         DrawFurniture(furniture, furniture_positions);
                         if(held_object == HO_TELEPORT) {
                             if(IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-                                held_object = HO_NOTHING;
-                                positions[current_layer] = PenkVector2 {(int)camera.position.z, (int)camera.position.x};
+                                Vector3 lookAt = CalculateLookAtTarget(camera);
+                                for (int y = 0; y < cubicmap_textures[current_layer].height; y++) {
+                                    for (int x = 0; x < cubicmap_textures[current_layer].width; x++) {
+                                        if ((map_pixels_vector[current_layer][y*cubicmap_textures[current_layer].width + x].r == 255) &&       // Collision: white pixel, only check R channel
+                                            (CheckCollisionCircleRec(Vector2 {lookAt.z, lookAt.x}, 0.5f,
+                                            (Rectangle){ 0 - 0.5f + x*1.0f, 0 - 0.5f + y*1.0f, 1.0f, 1.0f }))) {
+                                            // TODO: Action
+                                        } else {
+                                            held_object = HO_NOTHING;
+                                            positions[current_layer] = PenkWorldVector2 {lookAt.z, lookAt.x};
+                                        }
+                                    }
+                                }
                             } else if(IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
                                 held_object = HO_NOTHING;
                                 NextLayer(&camera);
@@ -253,13 +268,20 @@ int main(int argc, char** argv) {
                         for(int x = 0; x < map_size; x++) {
                             for(int y = 0; y < map_size; y++) {
                                 if(map_pixels_vector[current_layer][y * map_size + x].r != 255) {
-                                    DrawRectangle(GetScreenWidth() - cubicmap_textures[current_layer].width*4 - 20 + x * 4, 20 + y * 4, 4, 4, Color{(unsigned char)(pathMap.map[y][x] / 50), (unsigned char)(pathMap.map[y][x] / 50), 0, 255});
+                                    if(pathMap.map[y][x] > 0) {
+                                        DrawRectangle(GetScreenWidth() - cubicmap_textures[current_layer].width*4 - 20 + x * 4, 20 + y * 4, 4, 4, Color{(unsigned char)(pathMap.map[y][x] / 50), (unsigned char)(pathMap.map[y][x] / 50), 0, 255});
+                                    } else {
+                                        DrawRectangle(GetScreenWidth() - cubicmap_textures[current_layer].width*4 - 20 + x * 4, 20 + y * 4, 4, 4, Color{0, (unsigned char)(-(pathMap.map[y][x]) / 5000), 0, 255});
+                                    }
                                 }
                             }
                         }
 
                         DrawRectangle(GetScreenWidth() - cubicmap_textures[current_layer].width*4 - 20 + enemyPosition.position.x*4, 20 + enemyPosition.position.y*4, 4, 4, RED);
                         DrawRectangle(GetScreenWidth() - cubicmap_textures[current_layer].width*4 - 20 + camera.position.x*4, 20 + camera.position.z*4, 4, 4, GREEN);
+                        if((int)positions[current_layer].x != 2147483647 && (int)positions[current_layer].y != 2147483647) {
+                            DrawRectangle(GetScreenWidth() - cubicmap_textures[current_layer].width*4 - 20 + positions[current_layer].y*4, 20 + positions[current_layer].x*4, 4, 4, BLUE);
+                        }
                     }
 
                     DebugHandleKeys();

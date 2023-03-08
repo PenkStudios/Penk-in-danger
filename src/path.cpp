@@ -1,5 +1,6 @@
 #include <raylib.h>
 #include "penk.cpp"
+#include "penkGraphics.cpp"
 
 #define DIRECTION_FORWARD 0
 #define DIRECTION_BACKWARD 1
@@ -28,6 +29,12 @@ namespace Path {
 
 		float toRotate = 0;
 		bool rotating = false;
+
+		bool sliding = false;
+		PenkWorldVector2 slideTo;
+		PenkWorldVector2 originalPosition;
+		int slideCooldown = 0;
+		int maxSlideCooldown = 0;
 
 		PenkWorldVector2 PositionTickByDirection(int _direction, float amount) {
 			PenkWorldVector2 vector {0.f, 0.f};
@@ -64,17 +71,21 @@ namespace Path {
 			return 0;
 		}
 
-		bool Collide(Color* grid, int size) {
+		bool PositionCollide(Color* grid, int size, PenkWorldVector2 _position, float blockSize) {
 			for (int y = 0; y < size; y++) {
                 for (int x = 0; x < size; x++) {
                     if ((grid[y * size + x].r == 255) &&
-                        (CheckCollisionRecs((Rectangle){-0.5f + position.x, -0.5f + position.y, 0.89f, 0.89f},
+                        (CheckCollisionRecs((Rectangle){-0.5f + _position.x, -0.5f + _position.y, blockSize, blockSize},
                         (Rectangle){ 0 - 0.5f + x*1.0f, 0 - 0.5f + y*1.0f, 1.0f, 1.0f }))) {
                         return true;
                     }
                 }
             }
             return false;
+		}
+
+		bool Collide(Color* grid, int size) {
+			return PositionCollide(grid, size, position, 0.89f);
 		}
 
 		int FreeSpace(Color* grid, int size) {
@@ -143,11 +154,63 @@ namespace Path {
 			direction = _direction;
 		}
 
+		bool RayCast(Color* grid, int size, PenkWorldVector2 _position, PenkWorldVector2 targetPosition) {
+			PenkWorldVector2 stepPosition;
+			stepPosition.x = (targetPosition.x - _position.x) / 45;
+			stepPosition.y = (targetPosition.y - _position.y) / 45;
+
+			PenkWorldVector2 currentPosition = _position;
+
+			for(int i = 0; i < 45; i++) {
+				currentPosition.x += stepPosition.x;
+				currentPosition.y += stepPosition.y;
+
+				if(PositionCollide(grid, size, currentPosition, 0.5f)) {
+					return true;
+				}
+			}
+			return false;
+		}
+
 		void Tick(Color* grid, int size, PathMap* pathMap, PenkWorldVector2 playerPosition, int slowness) {
+			if(position.x > size || position.y > size || position.x < 0 || position.y < 0) {
+				// Glitch ??
+				position.x = (float)size / 2;
+				position.y = (float)size / 2;
+				return;
+			}
+
+			if(sliding) {
+				if(slideCooldown < maxSlideCooldown) {
+					slideCooldown++;
+					PenkWorldVector2 addVector{(slideTo.ToNormal().x - originalPosition.x) / (slowness * 5) * slideCooldown, (slideTo.ToNormal().y - originalPosition.y) / (slowness * 5) * slideCooldown};
+
+					position.x = originalPosition.x + addVector.x;
+					position.y = originalPosition.y + addVector.y;
+
+					rotation = YRotateTowards(position, playerPosition) * RAD2DEG;
+				} else {
+					sliding = false;
+					if(RayCast(grid, size, position, playerPosition)) rotation = GetAngle(direction);
+				}
+				return;
+			}
+
+			if(playerPosition.x < position.x + 45 && playerPosition.x > position.x - 45 &&
+				playerPosition.y < position.y + 45 && playerPosition.y > position.y - 45) {
+				bool hit = RayCast(grid, size, position, playerPosition);
+				if(!hit) {
+					sliding = true;
+					slideTo = playerPosition;
+					maxSlideCooldown = slowness * 5;
+					slideCooldown = 0;
+					originalPosition = position;
+				}
+			}
+
 			if(rotating) {
 				if((int)rotation != (int)toRotate) {
 					rotation += (toRotate - rotation) / rotationSteps;
-					printf("Rotate by: %f\n", (toRotate - rotation) / rotationSteps);
 				} else {
 					rotating = false;
 				}
@@ -155,7 +218,7 @@ namespace Path {
 			}
 
 			PenkWorldVector2 oldPosition = position;
-			maxPositionTick = slowness * 5;
+			maxPositionTick = slowness;
 
 			int sum = 0;
 
@@ -184,12 +247,14 @@ namespace Path {
 			if(positionTick < 0) {
 				positionTick = maxPositionTick / 2 + rand() % (maxPositionTick / 2);
 				pathMap->map[position.y][position.x] += 1000;
-				pathMap->map[playerPosition.ToNormal().y][playerPosition.ToNormal().x] -= 1000;
+				pathMap->map[playerPosition.ToNormal().y][playerPosition.ToNormal().x] -= 10000;
 
 				for(int x = 0; x < size; x++) {
 					for(int y = 0; y < size; y++) {
 						if(pathMap->map[y][x] > 0) {
-							pathMap->map[y][x] -= 10;
+							pathMap->map[y][x] -= 50;
+						} else {
+							pathMap->map[y][x] += 50;
 						}
 					}
 				}
