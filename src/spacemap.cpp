@@ -317,6 +317,9 @@ void UpdateSpaceMap() {
 
 void SpaceFree() {
     for(int i = 0; i < max_layers; i++) {
+        if(remove(TextFormat("resources/temp/layer%i.png", i)) != 0) {
+            PenkError("SpaceFree()", "failed to remove");
+        }
         UnloadImageColors(map_pixels_vector[i]);
         UnloadTexture(cubicmap_textures[i]);
         UnloadTexture(atlas_textures[i]);

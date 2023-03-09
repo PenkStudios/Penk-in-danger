@@ -6,4 +6,4 @@
 
 ## BUGS
 1) Fix crashing after reaching MAX + 1 level
-2) Delete temp files (map files)
+2) Delete temp files (map files) ✔
