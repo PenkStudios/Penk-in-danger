@@ -11,6 +11,8 @@ struct PenkVector2 {
     int y;
 };
 
+using PenkVector4 = float [4];
+
 struct PenkWorldVector2 {
     float x;
     float y;

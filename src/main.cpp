@@ -24,9 +24,8 @@ FurnitureType furniture_positions;
 struct stat info;
 
 bool EnvironmentCheck() {
-    const char* deps[] = {
+    std::vector<const char*> deps = {
         "resources/atlas.png",
-        "resources/wireframe.png",
         "resources/temp/",
         "resources/teleport.obj",
         "resources/teleport.mtl",
@@ -36,6 +35,12 @@ bool EnvironmentCheck() {
         "resources/font.png",
         "resources/house.obj"
     };
+
+    for(int furniture = 0; furniture < max_furniture; furniture++) {
+        deps.push_back(TextFormat("resources/furniture%i.obj", furniture));
+        deps.push_back(TextFormat("resources/furniture%i.mtl", furniture));
+    }
+
     for(const char* dep : deps) {
         if(stat(dep, &info) != 0) return false;
     }
@@ -61,7 +66,7 @@ void GameInit() {
 Image redboy_image;
 Texture redboy_texture;
 
-enum Scene {MENU, GAME};
+enum Scene {MENU, GAME, SERVER_CONSOLE};
 Scene scene = MENU;
 
 Path::EnemyPosition enemyPosition;
@@ -119,7 +124,39 @@ void DrawItem(Camera3D camera) {
     DrawModelEx(to_render, position, (Vector3){0.f, 1.f, 0.f}, rotation, (Vector3){.1f, .1f, .1f}, WHITE);
 }
 
+struct ConsoleData {
+    int letterPointer;
+    int letterMax;
+    int maxRows;
+    int rowPointer;
+    std::string inputText;
+    std::vector<std::string> consoleText;
+};
+
+ConsoleData GetConsoleData() {
+    ConsoleData data;
+    data.letterMax = GetScreenWidth() / 19;
+    data.maxRows = GetScreenHeight() / 30;
+
+    for(int character = 0; character < data.letterMax; character++) {
+        data.inputText += '\0';
+    }
+
+    for(int row = 0; row < data.maxRows; row++) {
+        data.consoleText.emplace_back();
+        for(int character = 0; character < data.letterMax; character++) {
+            data.consoleText[row] += '\0';
+        }
+    }
+
+    return data;
+}
+
+ConsoleData consoleData;
+
 int main(int argc, char** argv) {
+    SetConfigFlags(FLAG_WINDOW_RESIZABLE);
+
     GameInit();
     
     printf("[PENK] Preparing to call 'createSpaceMap'...\n");
@@ -179,13 +216,56 @@ int main(int argc, char** argv) {
                     BeginMode3D(camera); {
                         DrawModel(house, (Vector3){0, 0, 0}, .1f, WHITE);
                     } EndMode3D();
-                    DrawTextureScale(title, (Vector2){(float)width / 2, 150.f}, (Vector2){6.7f, 6.2f}, WHITE);
-                    DrawButton(&new_game_button, (Vector2){(float)width / 2 - 155, 325.f}, (Vector2){.6f, .6f}, "New game", WHITE, 3.f);
-                    DrawButton(&new_server_button, (Vector2){(float)width / 2 + 155, 325.f}, (Vector2){.6f, .6f}, "New server", WHITE, 3.f);
-                    DrawButton(&join_server_button, (Vector2){(float)width / 2 - 155, 425.f}, (Vector2){.6f, .6f}, "Join server", WHITE, 3.f);
-                    DrawButton(&settings_button, (Vector2){(float)width / 2 + 155, 425.f}, (Vector2){.6f, .6f}, "Settings", WHITE, 3.f);
+                    DrawTextureScale(title, (Vector2){(float)GetScreenWidth() / 2, (float)GetScreenHeight() / 2 - 125.f}, (Vector2){6.7f, 6.2f}, WHITE);
+                    DrawButton(&new_game_button, (Vector2){(float)GetScreenWidth() / 2 - 155, (float)GetScreenHeight() / 2 + 50.f}, (Vector2){.6f, .6f}, "New game", WHITE, 3.f);
+                    DrawButton(&new_server_button, (Vector2){(float)GetScreenWidth() / 2 + 155, (float)GetScreenHeight() / 2 + 50.f}, (Vector2){.6f, .6f}, "New server", WHITE, 3.f);
+                    DrawButton(&join_server_button, (Vector2){(float)GetScreenWidth() / 2 - 155, (float)GetScreenHeight() / 2 + 150.f}, (Vector2){.6f, .6f}, "Join server", WHITE, 3.f);
+                    DrawButton(&settings_button, (Vector2){(float)GetScreenWidth() / 2 + 155, (float)GetScreenHeight() / 2 + 150.f}, (Vector2){.6f, .6f}, "Settings", WHITE, 3.f);
                     if(IsButtonPressed(new_game_button)) {
                         SwitchToGame(&camera, &controller);
+                    } else if(IsButtonPressed(new_server_button)) {
+                        consoleData = GetConsoleData();
+                        scene = SERVER_CONSOLE;
+                    }
+                } EndDrawing();
+                break;
+            }
+
+            case SERVER_CONSOLE: {
+                BeginDrawing(); {
+                    ClearBackground(Color{25, 25, 30, 255});
+                    DrawRectangle(10, 10, GetScreenWidth() - 20, GetScreenHeight() - 20, Color{10, 10, 15, 255});
+                    DrawRectangle(13, 13, GetScreenWidth() - 26, GetScreenHeight() - 26, Color{30, 30, 35, 255});
+                    DrawRectangle(17, GetScreenHeight() - 52, GetScreenWidth() - 34, 35, Color{20, 20, 25, 255});
+                    if(IsKeyPressed(KEY_BACKSPACE)) {
+                        consoleData.letterPointer--;
+                        if (consoleData.letterPointer < 0) consoleData.letterPointer = 0;
+                        consoleData.inputText[consoleData.letterPointer] = '\0';
+                    } else if(IsKeyPressed(KEY_ENTER)) {
+                        if(consoleData.rowPointer >= consoleData.maxRows) {
+                            consoleData.rowPointer = 0;
+                            for(int row = 0; row < consoleData.maxRows - 1; row++) {
+                                for(int index = 0; index < consoleData.letterMax; index++) {
+                                    consoleData.consoleText[row][index] = '\0';
+                                }
+                            }
+                        }
+                        consoleData.consoleText[consoleData.rowPointer] = consoleData.inputText;
+                        consoleData.rowPointer++;
+                        for(int index = 0; index < consoleData.letterMax; index++) {
+                            consoleData.inputText[index] = '\0';
+                        }
+                        consoleData.letterPointer = 0;
+                    }
+                    int character = GetCharPressed();
+                    if(character != 0 && consoleData.letterPointer < consoleData.letterMax) {
+                        consoleData.inputText[consoleData.letterPointer] = (char)character;
+                        consoleData.inputText[consoleData.letterPointer + 1] = '\0';
+                        consoleData.letterPointer++;
+                    }
+                    DrawTextEx(base_font, consoleData.inputText.c_str(), (Vector2){25, (float)GetScreenHeight() - 50}, 30, 5, WHITE);
+                    for(int row = 0; row < consoleData.rowPointer; row++) {
+                        DrawTextEx(base_font, consoleData.consoleText[row].c_str(), (Vector2){20, (float)15 + row * 25}, 30, 5, WHITE);
                     }
                 } EndDrawing();
                 break;
@@ -209,7 +289,7 @@ int main(int argc, char** argv) {
 
                 for (int y = 0; y < cubicmap_textures[current_layer].height; y++) {
                     for (int x = 0; x < cubicmap_textures[current_layer].width; x++) {
-                        if ((map_pixels_vector[current_layer][y*cubicmap_textures[current_layer].width + x].r == 255) &&       // Collision: white pixel, only check R channel
+                        if ((map_pixels_vector[current_layer][y*cubicmap_textures[current_layer].width + x].r == 255) &&
                             (CheckCollisionCircleRec(playerPos, playerRadius,
                             (Rectangle){ 0 - 0.5f + x*1.0f, 0 - 0.5f + y*1.0f, 1.0f, 1.0f }))) {
                             camera.position = old_camera_position;
@@ -230,7 +310,7 @@ int main(int argc, char** argv) {
                                 Vector3 lookAt = CalculateLookAtTarget(camera);
                                 for (int y = 0; y < cubicmap_textures[current_layer].height; y++) {
                                     for (int x = 0; x < cubicmap_textures[current_layer].width; x++) {
-                                        if ((map_pixels_vector[current_layer][y*cubicmap_textures[current_layer].width + x].r == 255) &&       // Collision: white pixel, only check R channel
+                                        if ((map_pixels_vector[current_layer][y*cubicmap_textures[current_layer].width + x].r == 255) &&
                                             (CheckCollisionCircleRec(Vector2 {lookAt.x, lookAt.z}, 0.2f,
                                             (Rectangle){ 0 - 0.5f + x*1.0f, 0 - 0.5f + y*1.0f, 1.0f, 1.0f }))) {
                                             // TODO: Action

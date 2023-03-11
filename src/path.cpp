@@ -254,9 +254,9 @@ namespace Path {
 				for(int x = 0; x < size; x++) {
 					for(int y = 0; y < size; y++) {
 						if(pathMap->map[y][x] > 0) {
-							pathMap->map[y][x] -= 50;
+							pathMap->map[y][x] -= 10;
 						} else {
-							pathMap->map[y][x] += 50;
+							pathMap->map[y][x] += 10;
 						}
 					}
 				}

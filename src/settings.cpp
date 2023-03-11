@@ -12,6 +12,6 @@ int map_size = 50;
 int layers = 2;
 int seed = 0; /* random */
 
-int max_furniture = 4;
+int max_furniture = 5;
 
 #endif // PENK_DEF_CPP
