@@ -3,158 +3,114 @@
 #define PENK_NETWORK_CPP
 
 #include "penk.cpp"
+#include "penkGraphics.cpp"
+#include "RakNetTypes.h"
+#include "RakPeerInterface.h"
+#include "RakNetStatistics.h"
+#include "MessageIdentifiers.h"
 
-#include <enet/enet.h>
-
-enum PenkNetworkType { CLIENT, SERVER };
-
-bool initialized = false;
-
-void NetworkInit() {
-    penkAssert(enet_initialize() == 0, "unable to initialize ENet! (networking)");
-    atexit(enet_deinitialize);
-    initialized = true;
-}
-
-struct Client {
-    bool error;
-    ENetHost* client;
-    ENetAddress address;
-    ENetEvent event;
-    ENetPeer* peer;
+struct ServerData {
+    char* password;
+    int timeoutTime;
+    int maxConnections;
 };
-
-Client GenerateClientError(const char *error) {
-    printf("[PENK.NETWORK] %s!\n", error);
-    return Client{true};
-}
-
-Client CreateClient(const char* host, int port) {
-    if(!initialized) {
-        return generateClientError("Not initialized");
-    }
-
-    Client output_client;
-    output_client.error = false;
-
-    output_client.client = enet_host_create(NULL, 1, 1, 0, 0);
-    
-    if(output_client.client == NULL) {
-        return generateClientError("Failed to create a host");
-    }
-
-    enet_address_set_host(&output_client.address, host);
-    output_client.address.port = port;
-    output_client.peer = enet_host_connect(output_client.client, &output_client.address, 1, 0);
-    
-    if(output_client.peer == NULL) {
-        return generateClientError("No available peers");
-    }
-
-    if(enet_host_service(output_client.client, &output_client.event, 5000) > 0 && output_client.event.type == ENET_EVENT_TYPE_CONNECT) {
-        printf("[PENK.NETWORK] Connected to %s:%i successfully\n", host, port);
-    } else {
-        enet_peer_reset(output_client.peer);
-        return generateClientError("Unable to connect");
-    }
-
-    return output_client;
-}
-
-void UpdateClient(Client client, bool debug = false, int sleep = 20) {
-    while(enet_host_service(client.client, &client.event, sleep) > 0) {
-        switch(client.event.type) {
-            case ENET_EVENT_TYPE_RECEIVE:
-                if(debug) {
-                    printf("[PENK.NETWORK] A packet of length %u (%s) was received from %x:%u on channel %u:\n",
-                        client.event.packet -> dataLength,
-                        client.event.packet -> data,
-                        client.event.peer -> address.host,
-                        client.event.peer -> address.port,
-                        client.event.channelID);
-                }
-                break;
-        }
-    }
-}
-
-void DestroyClient(Client client) {
-    enet_peer_disconnect(client.peer, 0);
-    while(enet_host_service(client.client, &client.event, 250) > 0) {
-        switch(client.event.type) {
-            case ENET_EVENT_TYPE_RECEIVE:
-                enet_packet_destroy(client.event.packet);
-                break;
-
-            case ENET_EVENT_TYPE_DISCONNECT:
-                printf("[PENK.NETWORK] Disconnected\n");
-                break;
-        }
-    }
-}
 
 struct Server {
-    bool error;
-    ENetHost* server;
-    ENetAddress address;
-    ENetEvent event;
-};
+    RakNet::RakPeerInterface *server;
+    RakNet::RakNetStatistics *stats;
+    RakNet::Packet *packet;
+    
+    ServerData serverData;
+    unsigned char packetIdentifier;
+    RakNet::SystemAddress clientID = RakNet::UNASSIGNED_SYSTEM_ADDRESS;
 
-Server GenerateServerError(const char *error) {
-    printf("[PENK.NETWORK] %s!\n", error);
-    return Server{true};
-}
+    RakNet::SocketDescriptor socketDescriptor[1];
 
-Server CreateServer(int port, int player_limit) {
-    if(!initialized) {
-        return GenerateServerError("Not initialized");
-    }
+    DataStructures::List<RakNet::RakNetSocket2*> sockets;
 
-    Server output_server;
-    output_server.error = false;
-    output_server.address.host = ENET_HOST_ANY;
-    output_server.address.port = port;
+    bool fail;
 
-    output_server.server = enet_host_create(&output_server.address, player_limit, 1, 0, 0);
+    bool Init(int port) {
+        server = RakNet::RakPeerInterface::GetInstance();
+        server->SetIncomingPassword(serverData.password, (int)strlen(serverData.password));
+        server->SetTimeoutTime(serverData.timeoutTime, RakNet::UNASSIGNED_SYSTEM_ADDRESS);
 
-    if(output_server.server == NULL) {
-        return GenerateServerError("Unable to create server");
-    }
+        socketDescriptor[0].port = port;
+        socketDescriptor[0].socketFamily = AF_INET;
 
-    return output_server;
-}
+        fail = server->Startup(serverData.maxConnections, socketDescriptor, 1) != RakNet::RAKNET_STARTED;
+        server->SetMaximumIncomingConnections(serverData.maxConnections);
 
-void UpdateServer(Server server, bool debug = false, int sleep = 200) {
-    while(enet_host_service(server.server, &server.event, sleep) > 0) {
-        switch(server.event.type) {
-            case ENET_EVENT_TYPE_CONNECT:
-                if(debug) printf("[PENK.NETWORK] New connection from %x:%u\n", 
-                    server.event.peer -> address.host,
-                    server.event.peer -> address.port);
-                break;
-
-            case ENET_EVENT_TYPE_RECEIVE:
-                if(debug) {
-                    printf("[PENK.NETWORK] A packet of length %u (%s) was received from %x:%u on channel %u:\n",
-                        server.event.packet -> dataLength,
-                        server.event.packet -> data,
-                        server.event.peer -> address.host,
-                        server.event.peer -> address.port,
-                        server.event.channelID);
-                }
-                break;    
-
-            case ENET_EVENT_TYPE_DISCONNECT:
-                if(debug) printf("[PENK.NETWORK] %x:%u disconnected\n",
-                    server.event.peer -> address.host,
-                    server.event.peer -> address.port);
-            break;
+        if(fail) {
+            return false;
         }
-    }
-}
 
-void DestroyServer(Server server) {
-    enet_host_destroy(server.server);
-}
+        server->SetOccasionalPing(true);
+        server->SetUnreliableTimeout(1000);
+
+        server->GetSockets(sockets);
+        return true;
+    }
+
+    unsigned char _GetPacketIdentifier(RakNet::Packet *packet) {
+        if (packet == 0) return 255;
+
+        if ((unsigned char)packet->data[0] == ID_TIMESTAMP) {
+            RakAssert(packet->length > sizeof(RakNet::MessageID) + sizeof(RakNet::Time));
+            return (unsigned char)packet->data[sizeof(RakNet::MessageID) + sizeof(RakNet::Time)];
+        }
+        else return (unsigned char)packet->data[0];
+    }
+
+
+    void Broadcast(char message[]) {
+        server->Send(message, (const int)strlen(message) + 1, HIGH_PRIORITY, RELIABLE_ORDERED, 0, RakNet::UNASSIGNED_SYSTEM_ADDRESS, true);
+    }
+
+    const char* Receive() {
+        for (packet = server->Receive(); packet; server->DeallocatePacket(packet), packet = server->Receive())
+        {
+            packetIdentifier = _GetPacketIdentifier(packet);
+
+            switch (packetIdentifier)
+            {
+                case ID_DISCONNECTION_NOTIFICATION:
+                    return TextFormat("%s disconnected.", packet->systemAddress.ToString(true));
+                    break;
+
+
+                case ID_NEW_INCOMING_CONNECTION:
+                    clientID = packet->systemAddress;
+                    return TextFormat("New incoming connection from %s", packet->systemAddress.ToString(true));
+                    break;
+
+                case ID_INCOMPATIBLE_PROTOCOL_VERSION:
+                    return "Incompatible protocol version packet received";
+                    break;
+
+                case ID_CONNECTED_PING:
+                case ID_UNCONNECTED_PING:
+                    return TextFormat("Ping from %s\n", packet->systemAddress.ToString(true));
+                    break;
+
+                case ID_CONNECTION_LOST:
+                    return TextFormat("Connection lost (from %s)", packet->systemAddress.ToString(true));
+                    break;
+
+                default:
+                    server->Send((const char*)packet->data, (const int)strlen((const char*)packet->data)+1, HIGH_PRIORITY, RELIABLE_ORDERED, 0, packet->systemAddress, true);
+
+                    return "TextFormat('.%s', (const char*)packet->data)";
+                    break;
+            }
+        }
+        return "NULL";
+    }
+
+    void Destroy() {
+        server->Shutdown(300);
+        RakNet::RakPeerInterface::DestroyInstance(server);
+    }
+};
 
 #endif // PENK_NETWORK_CPP

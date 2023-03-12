@@ -18,6 +18,8 @@ bool debug_menu = false;
 #include "penkController.cpp"
 #include "path.cpp"
 
+#include "penkNetwork.cpp"
+
 PositionsType positions;
 FurnitureType furniture_positions;
 
@@ -33,7 +35,8 @@ bool EnvironmentCheck() {
         "resources/redboy.png",
         "resources/teleport_hand.png",
         "resources/font.png",
-        "resources/house.obj"
+        "resources/house.obj",
+        "resources/cancel.png"
     };
 
     for(int furniture = 0; furniture < max_furniture; furniture++) {
@@ -66,7 +69,7 @@ void GameInit() {
 Image redboy_image;
 Texture redboy_texture;
 
-enum Scene {MENU, GAME, SERVER_CONSOLE};
+enum Scene {MENU, GAME, SERVER_CONSOLE, JOIN_GAME};
 Scene scene = MENU;
 
 Path::EnemyPosition enemyPosition;
@@ -125,39 +128,49 @@ void DrawItem(Camera3D camera) {
 }
 
 struct ConsoleData {
-    int letterPointer;
-    int letterMax;
+    int letterPointer = 0;
     int maxRows;
-    int rowPointer;
-    std::string inputText;
+    int rowPointer = 0;
     std::vector<std::string> consoleText;
+    std::string status;
+
+    void Print(std::string text) {
+        if(rowPointer >= maxRows) {
+            rowPointer--;
+            consoleText.erase(consoleText.begin());
+            consoleText.emplace_back();
+            consoleText.back() = "";
+        }
+        consoleText[rowPointer] = text;
+        rowPointer++;
+    }
 };
+
+enum LoadingStatus {LS_NOP, LS_START, LS_END, LS_CLOSE, LS_UPDATE};
+LoadingStatus loadingStatus = LS_START;
 
 ConsoleData GetConsoleData() {
     ConsoleData data;
-    data.letterMax = GetScreenWidth() / 19;
-    data.maxRows = GetScreenHeight() / 30;
-
-    for(int character = 0; character < data.letterMax; character++) {
-        data.inputText += '\0';
-    }
+    data.maxRows = GetScreenHeight() / 35;
 
     for(int row = 0; row < data.maxRows; row++) {
         data.consoleText.emplace_back();
-        for(int character = 0; character < data.letterMax; character++) {
-            data.consoleText[row] += '\0';
-        }
     }
 
     return data;
 }
 
 ConsoleData consoleData;
+Server server;
 
 int main(int argc, char** argv) {
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
 
     GameInit();
+
+    server.serverData.password = "penk";
+    server.serverData.timeoutTime = 500;
+    server.serverData.maxConnections = 5;
     
     printf("[PENK] Preparing to call 'createSpaceMap'...\n");
     SpaceMapType space_data = CreateSpaceMap(map_size, layers);
@@ -181,6 +194,7 @@ int main(int argc, char** argv) {
     button.clicked = LoadTexture("resources/button_click.png");
 
     Texture title = LoadTexture("resources/title.png");
+    Texture cancel = LoadTexture("resources/cancel.png");
 
     Button new_game_button;
     new_game_button.view = button;
@@ -234,39 +248,58 @@ int main(int argc, char** argv) {
             case SERVER_CONSOLE: {
                 BeginDrawing(); {
                     ClearBackground(Color{25, 25, 30, 255});
-                    DrawRectangle(10, 10, GetScreenWidth() - 20, GetScreenHeight() - 20, Color{10, 10, 15, 255});
-                    DrawRectangle(13, 13, GetScreenWidth() - 26, GetScreenHeight() - 26, Color{30, 30, 35, 255});
-                    DrawRectangle(17, GetScreenHeight() - 52, GetScreenWidth() - 34, 35, Color{20, 20, 25, 255});
-                    if(IsKeyPressed(KEY_BACKSPACE)) {
-                        consoleData.letterPointer--;
-                        if (consoleData.letterPointer < 0) consoleData.letterPointer = 0;
-                        consoleData.inputText[consoleData.letterPointer] = '\0';
-                    } else if(IsKeyPressed(KEY_ENTER)) {
-                        if(consoleData.rowPointer >= consoleData.maxRows) {
-                            consoleData.rowPointer = 0;
-                            for(int row = 0; row < consoleData.maxRows - 1; row++) {
-                                for(int index = 0; index < consoleData.letterMax; index++) {
-                                    consoleData.consoleText[row][index] = '\0';
-                                }
+                    DrawRectangle(10, 10, GetScreenWidth() - 20, GetScreenHeight() - 20, Color{10, 10, 15, 255});   // Border
+                    DrawRectangle(13, 13, GetScreenWidth() - 26, GetScreenHeight() - 26, Color{30, 30, 35, 255});   // Inside border
+                    DrawRectangle(GetScreenWidth() - 518, GetScreenHeight() - 52, 500, 35, Color{20, 20, 25, 255}); // Status box
+                    DrawTextEx(base_font, consoleData.status.c_str(), (Vector2){(float)GetScreenWidth() - 259 - (consoleData.status.size() * 8), (float)GetScreenHeight() - 50}, 30, 5, Color{128, 127, 128, 255});
+                    for(int row = 0; row < consoleData.rowPointer; row++) {
+                        DrawTextEx(base_font, consoleData.consoleText[row].c_str(), (Vector2){20, (float)15 + row * 30}, 30, 5, WHITE);
+                    }
+
+                    Vector2 mousePoint = GetMousePosition();
+                    Rectangle collisionPoints = {(float)GetScreenWidth() - 50, 25, 25, 25};
+                    if(CheckCollisionPointRec(mousePoint, collisionPoints)) {
+                        if(IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+                            if(loadingStatus != LS_NOP /* Make sure, that the server is not closed */ ) {
+                                loadingStatus = LS_CLOSE;
                             }
                         }
-                        consoleData.consoleText[consoleData.rowPointer] = consoleData.inputText;
-                        consoleData.rowPointer++;
-                        for(int index = 0; index < consoleData.letterMax; index++) {
-                            consoleData.inputText[index] = '\0';
+                        DrawTexture(cancel, (float)GetScreenWidth() - 50, 25, loadingStatus != LS_NOP ? RED : Color {128, 128, 128, 255});
+                    } else {
+                        DrawTexture(cancel, (float)GetScreenWidth() - 50, 25, WHITE);
+                    }
+
+                    switch(loadingStatus) {
+                        case LS_START: {
+                            consoleData.Print("Starting server...");
+                            consoleData.status = "Status: starting";
+                            server.Init(7777);
+                            loadingStatus = LS_UPDATE;
+                            break;
                         }
-                        consoleData.letterPointer = 0;
+
+                        case LS_UPDATE: {
+                            consoleData.status = "Status: running";
+                            const char* data = server.Receive();
+                            if(data != "NULL") {
+                                consoleData.Print(std::string(data));
+                            }
+                            break;
+                        }
+
+                        case LS_NOP: {
+                            break;
+                        }
+
+                        case LS_CLOSE: {
+                            server.Destroy();
+                            consoleData.Print("Server closed");
+                            consoleData.status = "Status: closed";
+                            loadingStatus = LS_NOP;
+                            break;
+                        }
                     }
-                    int character = GetCharPressed();
-                    if(character != 0 && consoleData.letterPointer < consoleData.letterMax) {
-                        consoleData.inputText[consoleData.letterPointer] = (char)character;
-                        consoleData.inputText[consoleData.letterPointer + 1] = '\0';
-                        consoleData.letterPointer++;
-                    }
-                    DrawTextEx(base_font, consoleData.inputText.c_str(), (Vector2){25, (float)GetScreenHeight() - 50}, 30, 5, WHITE);
-                    for(int row = 0; row < consoleData.rowPointer; row++) {
-                        DrawTextEx(base_font, consoleData.consoleText[row].c_str(), (Vector2){20, (float)15 + row * 25}, 30, 5, WHITE);
-                    }
+                    
                 } EndDrawing();
                 break;
             }
@@ -392,6 +425,8 @@ int main(int argc, char** argv) {
     UnloadButton(new_server_button);
     UnloadButton(join_server_button);
     UnloadButton(settings_button);
+
+    UnloadTexture(cancel);
 
     FurnitureFree(furniture);
 

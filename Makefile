@@ -1,6 +1,6 @@
-include = -Isrc/include
-ldFlags = -lGL -lX11 -lraylib -lenet
-ldWinFlags = -Llib -lopengl32 -lraylib -lenet64 -lwinmm
+include = -Isrc/include -Iinclude
+ldFlags = -lGL -lX11 -lraylib -Llib -llraknet
+ldWinFlags = -Llib -lopengl32 -lraylib -lwraknet -lwinmm
 debug = 
 optimisation = 
 
@@ -8,7 +8,6 @@ linux:
 	make fixobj
 	rm -rf ./build/resources
 	cp -r ./resources ./build
-	cp ./lib/libenet.so.7 ./build/libenet.so.7
 	g++ src/main.cpp $(include) $(ldFlags) $(debug) $(optimisation) -Wno-write-strings -o build/PenkInDanger
 
 run:
